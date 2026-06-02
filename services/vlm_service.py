@@ -1,7 +1,7 @@
 # services/vlm_service.py
 """VLM 多模态提取服务
 
-使用 qwen3.5-plus（DashScope OpenAI 兼容接口）直接从图片提取结构化字段，
+使用 qwen3.7-plus（DashScope OpenAI 兼容接口）直接从图片提取结构化字段，
 无需先经过 OCR 转文字，适合手写/复杂版式文档。
 """
 

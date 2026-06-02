@@ -242,7 +242,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-key
 # LLM 配置（默认 DeepSeek）
 LLM_API_KEY=your-api-key
 LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL_ID=deepseek-chat
+LLM_MODEL_ID=deepseek-v4-flash
 
 # 飞书配置（可选，推送目标按模板在 Supabase 中配置）
 FEISHU_APP_ID=your-app-id
@@ -255,7 +255,7 @@ DOC_PROCESS_MODE=ocr_llm
 # VLM 配置（DOC_PROCESS_MODE=vlm 时生效）
 VLM_API_KEY=
 VLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-VLM_MODEL_ID=qwen3.5-plus
+VLM_MODEL_ID=qwen3.7-plus
 ```
 
 > 各模板的飞书目标表格（feishu_bitable_token、feishu_table_id）在

@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     DATABASE_URL: Optional[str] = None
 
     # ============ LLM配置 ============
-    LLM_MODEL_ID: str = "deepseek-chat"
+    LLM_MODEL_ID: str = "deepseek-v4-flash"
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com"
     LLM_TEMPERATURE: float = 0.5
@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     DOC_PROCESS_MODE: str = "ocr_llm"
 
     # VLM 配置（DOC_PROCESS_MODE="vlm" 时生效）
-    VLM_MODEL_ID: str = "qwen3.5-plus"
+    VLM_MODEL_ID: str = "qwen3.7-plus"
     VLM_API_KEY: str = ""
     VLM_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     VLM_TEMPERATURE: float = 0.1
