@@ -130,6 +130,10 @@ async def update_job(job_id: str, stage: str, **extra: Any) -> None:
         "updated_at": _utc_now_iso(),
         **extra,
     }
+    if status in ("completed", "failed"):
+        payload.setdefault("finished_at", _utc_now_iso())
+        payload.setdefault("locked_by", None)
+        payload.setdefault("locked_at", None)
     await _run_db(
         lambda: _job_table().update(payload).eq("job_id", job_id).execute()
     )
@@ -141,6 +145,25 @@ async def get_job(job_id: str) -> Optional[Dict[str, Any]]:
         lambda: _job_table().select("*").eq("job_id", job_id).limit(1).execute()
     )
     row = result.data[0] if result.data else None
+    return _normalize_job_record(row)
+
+
+async def claim_next_job(worker_id: str, stale_after_seconds: int = 1800) -> Optional[Dict[str, Any]]:
+    """原子认领下一个 queued job。没有可执行任务时返回 None。"""
+    result = await _run_db(
+        lambda: supabase_service.client.rpc(
+            "claim_next_processing_job",
+            {
+                "p_worker_id": worker_id,
+                "p_stale_after_seconds": stale_after_seconds,
+            },
+        ).execute()
+    )
+    data = result.data or []
+    if isinstance(data, dict):
+        row = data
+    else:
+        row = data[0] if data else None
     return _normalize_job_record(row)
 
 

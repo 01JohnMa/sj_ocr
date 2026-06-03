@@ -157,16 +157,6 @@ async def process_document(
                 created_by=user.user_id,
                 related_document_ids=[document_id],
             )
-            background_tasks.add_task(
-                process_document_task,
-                document_id=document_id,
-                file_path=file_path,
-                template_id=template_id,
-                tenant_id=tenant_id,
-                custom_push_name=document.get("custom_push_name") if document else None,
-                job_id=job_id,
-            )
-
             try:
                 await supabase_service.update_document_status(document_id, "queued")
             except Exception as status_err:
@@ -365,17 +355,6 @@ async def process_document_with_template(
                 created_by=user.user_id,
                 related_document_ids=[document_id],
             )
-            background_tasks.add_task(
-                process_document_with_template_task,
-                document_id=document_id,
-                file_path=file_path,
-                template_id=request.template_id,
-                tenant_id=user.tenant_id,
-                auto_approve=auto_approve,
-                custom_push_name=custom_push_name,
-                job_id=job_id,
-            )
-
             await supabase_service.update_document_status(document_id, "queued")
 
             return JSONResponse(status_code=202, content={

@@ -7,7 +7,6 @@ from pydantic import BaseModel, validator
 from typing import List, Optional
 from datetime import datetime
 from loguru import logger
-import asyncio
 import uuid
 import os
 
@@ -101,6 +100,11 @@ async def batch_process(
             "index": idx,
             "type": "merge" if is_merge else "single",
             "document_ids": doc_ids,
+            "document_id": item.document_id,
+            "template_id": item.template_id,
+            "paired_document_id": item.paired_document_id,
+            "paired_template_id": item.paired_template_id,
+            "custom_push_name": item.custom_push_name,
             "status": "queued",
         })
         dedupe_items.append(item.model_dump())
@@ -122,7 +126,6 @@ async def batch_process(
         dedupe_key=dedupe_key,
         related_document_ids=unique_document_ids,
     )
-    asyncio.create_task(_run_batch_job(job_id, request.items, user))
     logger.info(f"批量任务已提交: job_id={job_id}, 任务数={len(request.items)}")
     return JSONResponse(status_code=202, content={"job_id": job_id, "status": "queued"})
 

@@ -55,7 +55,6 @@ supabase/volumes/
 model/
 
 # 测试
-tests/
 pytest.ini
 .pytest_cache/
 .coverage

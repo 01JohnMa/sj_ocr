@@ -9,10 +9,11 @@ import base64
 import io
 import json
 import os
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from config.settings import settings
 from services.base import build_field_table
@@ -65,20 +66,20 @@ class VLMService:
     """多模态 VLM 提取服务（单例）"""
 
     _instance: Optional["VLMService"] = None
-    _client: Optional[OpenAI] = None
+    _client: Optional[AsyncOpenAI] = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def _get_client(self) -> OpenAI:
+    def _get_client(self) -> AsyncOpenAI:
         if self._client is None:
             if not settings.VLM_API_KEY:
                 raise RuntimeError(
                     "VLM_API_KEY 未配置，请在 .env 中设置 VLM_API_KEY"
                 )
-            self._client = OpenAI(
+            self._client = AsyncOpenAI(
                 api_key=settings.VLM_API_KEY,
                 base_url=settings.VLM_BASE_URL,
             )
@@ -99,7 +100,11 @@ class VLMService:
         pil_image.save(buf, format="JPEG", quality=95)
         return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-    def get_image_base64_list(self, file_path: str) -> List[str]:
+    async def get_image_base64_list(self, file_path: str) -> List[str]:
+        """异步获取文件的 base64 图片列表，避免同步 I/O 和 PDF 转图阻塞事件循环。"""
+        return await asyncio.to_thread(self._get_image_base64_list_sync, file_path)
+
+    def _get_image_base64_list_sync(self, file_path: str) -> List[str]:
         """
         获取文件的 base64 图片列表。
 
@@ -154,10 +159,10 @@ class VLMService:
 
     # ── VLM 调用 ──────────────────────────────────────────────────────────────
 
-    def _call_vlm(self, b64_image: str, prompt: str) -> str:
+    async def _call_vlm(self, b64_image: str, prompt: str) -> str:
         """对单张图片调用 VLM，返回原始文本响应"""
         client = self._get_client()
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=settings.VLM_MODEL_ID,
             messages=[
                 {
@@ -194,7 +199,7 @@ class VLMService:
         from agents.json_cleaner import parse_llm_json
 
         prompt = self.build_vlm_prompt(template)
-        b64_list = self.get_image_base64_list(file_path)
+        b64_list = await self.get_image_base64_list(file_path)
 
         logger.info(
             f"VLM 提取开始: {file_path}，共 {len(b64_list)} 页，"
@@ -205,7 +210,7 @@ class VLMService:
 
         for page_idx, b64 in enumerate(b64_list, 1):
             try:
-                raw = self._call_vlm(b64, prompt)
+                raw = await self._call_vlm(b64, prompt)
                 page_data = parse_llm_json(raw)
 
                 if "raw_response" in page_data:
@@ -244,7 +249,7 @@ class VLMService:
         from agents.json_cleaner import parse_llm_json
 
         prompt = self.build_vlm_prompt(template)
-        b64_list = self.get_image_base64_list(file_path)
+        b64_list = await self.get_image_base64_list(file_path)
 
         logger.info(
             f"VLM 逐页提取开始: {file_path}，共 {len(b64_list)} 页，"
@@ -254,7 +259,7 @@ class VLMService:
         results: List[Dict[str, Any]] = []
         for page_idx, b64 in enumerate(b64_list, 1):
             try:
-                raw = self._call_vlm(b64, prompt)
+                raw = await self._call_vlm(b64, prompt)
                 page_data = parse_llm_json(raw)
 
                 if "raw_response" in page_data:

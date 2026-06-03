@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     OCR_ORI_MODEL_PATH: str = "./model/PP-LCNet_x1_0_textline_ori_infer"
     OCR_DOC_MODEL_PATH: str = "./model/PP-LCNet_x1_0_doc_ori_infer"
     OCR_ENABLED: bool = True
+    OCR_INIT_ON_STARTUP: bool = True
     OCR_IR_OPTIM: bool = False
     OCR_USE_MKLDNN: bool = False
 
@@ -82,6 +83,9 @@ class Settings(BaseSettings):
 
     # ============ 文档处理并发控制 ============
     DOC_PROCESS_MAX_CONCURRENCY: int = 2
+    DOC_WORKER_POLL_INTERVAL_SECONDS: float = 2.0
+    DOC_WORKER_STALE_LOCK_SECONDS: int = 1800
+    DOC_WORKER_ID: str = ""
 
     @property
     def allowed_extensions_list(self) -> List[str]:
@@ -108,4 +112,3 @@ class Settings(BaseSettings):
 
 # 单例实例
 settings = Settings()
-

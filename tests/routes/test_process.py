@@ -32,7 +32,7 @@ class TestProcessDocument:
              _patch_workflow(), \
              patch("os.path.exists", return_value=True), \
              patch("api.routes.documents.process.create_job", new_callable=AsyncMock, return_value="job-001"), \
-             patch("api.routes.documents.process.process_document_task", new_callable=AsyncMock):
+             patch("api.routes.documents.process.process_document_task", new_callable=AsyncMock) as mock_task:
             mock_svc.get_document = AsyncMock(return_value=doc)
             mock_svc.update_document_status = AsyncMock()
             mock_svc.update_document = AsyncMock()
@@ -42,6 +42,7 @@ class TestProcessDocument:
         assert data["document_id"] == DOCUMENT_ID
         assert data["job_id"] == "job-001"
         assert data["status"] == "queued"
+        mock_task.assert_not_called()
 
     def test_process_document_not_found(self, client):
         """文档不存在返回 404"""
@@ -113,7 +114,7 @@ class TestProcessDocument:
         with _patch_supabase() as mock_svc, \
              patch("os.path.exists", return_value=True), \
              patch("api.routes.documents.process.create_job", new_callable=AsyncMock, return_value="job-002"), \
-             patch("api.routes.documents.process.process_document_task", new_callable=AsyncMock):
+             patch("api.routes.documents.process.process_document_task", new_callable=AsyncMock) as mock_task:
             mock_svc.get_document = AsyncMock(return_value=doc)
             mock_svc.update_document_status = AsyncMock()
             mock_svc.update_document = AsyncMock()
@@ -124,6 +125,7 @@ class TestProcessDocument:
         assert data["status"] == "queued"
         assert "已加入处理队列" in data["message"]
         mock_svc.update_document_status.assert_called_once_with(DOCUMENT_ID, "queued")
+        mock_task.assert_not_called()
 
     def test_process_async_is_idempotent_when_document_already_queued(self, client):
         """文档已在排队时，不应重复提交后台任务"""
@@ -155,7 +157,7 @@ class TestProcessWithTemplate:
              _patch_workflow(), \
              patch("os.path.exists", return_value=True), \
              patch("api.routes.documents.process.create_job", new_callable=AsyncMock, return_value="job-003"), \
-             patch("api.routes.documents.process.process_document_with_template_task", new_callable=AsyncMock), \
+             patch("api.routes.documents.process.process_document_with_template_task", new_callable=AsyncMock) as mock_task, \
              patch("api.routes.documents.process.template_service") as mock_ts:
             mock_svc.get_document = AsyncMock(return_value=doc)
             mock_svc.update_document_status = AsyncMock()
@@ -169,6 +171,7 @@ class TestProcessWithTemplate:
                 json={"template_id": TEMPLATE_ID},
             )
         assert resp.status_code == 202
+        mock_task.assert_not_called()
 
     def test_process_with_template_not_found(self, client):
         """文档不存在返回 404"""
