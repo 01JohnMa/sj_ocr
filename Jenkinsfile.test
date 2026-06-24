@@ -1,0 +1,123 @@
+pipeline {
+    agent { label '10.10.80.37' }
+
+    environment {
+        // Gitea 配置
+        GITEA_URL = 'http://10.10.80.35:3000/root/neoflow.git'
+        GITEA_BRANCH = 'develop'
+
+        // 测试环境目标服务器配置
+        DEPLOY_HOST = '8.149.241.141'
+        DEPLOY_PORT = '39222'
+        DEPLOY_USER = 'root'
+        DEPLOY_PATH = '/opt/neoflow'
+        SSH_CREDENTIALS_ID = 'aliyun-ecs-root'
+    }
+
+    stages {
+        stage('准备环境') {
+            steps {
+                echo '=========================================='
+                echo '开始测试环境部署流程'
+                echo "构建编号: ${BUILD_NUMBER}"
+                echo '=========================================='
+            }
+        }
+
+        stage('拉取代码') {
+            steps {
+                echo '从 Gitea 拉取 develop 代码...'
+                git branch: "${GITEA_BRANCH}",
+                    credentialsId: 'gitea-credentials',
+                    url: "${GITEA_URL}"
+                echo '代码拉取完成'
+            }
+        }
+
+        stage('同步代码到测试服务器') {
+            steps {
+                echo '通过 SSH 同步代码到测试服务器...'
+                sshagent(credentials: [env.SSH_CREDENTIALS_ID]) {
+                    sh '''
+                        set -e
+
+                        SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -p ${DEPLOY_PORT}"
+
+                        ssh ${SSH_OPTS} "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}'"
+
+                        rsync -az --delete \
+                          --exclude '.git/' \
+                          --exclude '.codegraph/' \
+                          --exclude '.codex/' \
+                          --exclude '.env' \
+                          --exclude '__pycache__/' \
+                          --exclude 'node_modules/' \
+                          --exclude 'web/node_modules/' \
+                          --exclude 'supabase/.env' \
+                          --exclude 'supabase/volumes/' \
+                          --exclude 'uploads/' \
+                          --exclude 'logs/' \
+                          --exclude 'model/' \
+                          -e "ssh ${SSH_OPTS}" \
+                          ./ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
+
+                        echo '代码同步完成'
+                    '''
+                }
+            }
+        }
+
+        stage('部署到测试服务器') {
+            steps {
+                echo '在测试服务器构建并启动容器...'
+                sshagent(credentials: [env.SSH_CREDENTIALS_ID]) {
+                    sh '''
+                        set -e
+
+                        SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -p ${DEPLOY_PORT}"
+
+                        ssh ${SSH_OPTS} "${DEPLOY_USER}@${DEPLOY_HOST}" "
+                            set -e
+                            cd '${DEPLOY_PATH}'
+
+                            echo '停止旧容器...'
+                            docker compose -f supabase/docker-compose.yml -f docker-compose.prod.yml stop || true
+
+                            echo '构建并启动新容器...'
+                            docker compose -f supabase/docker-compose.yml -f docker-compose.prod.yml build
+                            docker compose -f supabase/docker-compose.yml -f docker-compose.prod.yml up -d
+
+                            echo '清理旧镜像...'
+                            docker image prune -f
+
+                            echo '查看容器状态...'
+                            docker compose -f supabase/docker-compose.yml -f docker-compose.prod.yml ps
+                        "
+
+                        echo '=========================================='
+                        echo "测试环境部署完成！构建编号: ${BUILD_NUMBER}"
+                        echo '=========================================='
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+            echo '清理工作目录'
+        }
+        success {
+            echo '=========================================='
+            echo '测试环境构建和部署成功！'
+            echo "构建编号: ${BUILD_NUMBER}"
+            echo '=========================================='
+        }
+        failure {
+            echo '=========================================='
+            echo '测试环境构建或部署失败，请检查日志！'
+            echo '=========================================='
+        }
+    }
+}
