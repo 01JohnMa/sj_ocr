@@ -10,7 +10,7 @@ pipeline {
         DEPLOY_HOST = '8.149.241.141'
         DEPLOY_PORT = '39222'
         DEPLOY_USER = 'root'
-        DEPLOY_PATH = '/opt/neoflow'
+        DEPLOY_PATH = '/opt/apps/neoflow'
         SSH_CREDENTIALS_ID = 'aliyun-ecs-root'
     }
 
