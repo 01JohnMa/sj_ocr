@@ -13,6 +13,12 @@ INSERT INTO auth.users (
     role,
     raw_app_meta_data,
     raw_user_meta_data,
+    confirmation_token,
+    recovery_token,
+    email_change_token_new,
+    email_change,
+    email_change_token_current,
+    reauthentication_token,
     created_at,
     updated_at,
     aud,
@@ -26,6 +32,7 @@ INSERT INTO auth.users (
         'authenticated',
         '{"provider": "email", "providers": ["email"]}',
         '{"tenant_id": "a0000000-0000-0000-0000-000000000001", "display_name": "junmo Ma"}',
+        '', '', '', '', '', '',
         NOW(), NOW(), 'authenticated', '00000000-0000-0000-0000-000000000000'
     ),
     (
@@ -36,6 +43,7 @@ INSERT INTO auth.users (
         'authenticated',
         '{"provider": "email", "providers": ["email"]}',
         '{"tenant_id": "a0000000-0000-0000-0000-000000000002", "display_name": "admin123@gongniu.cn"}',
+        '', '', '', '', '', '',
         NOW(), NOW(), 'authenticated', '00000000-0000-0000-0000-000000000000'
     ),
     (
@@ -46,6 +54,7 @@ INSERT INTO auth.users (
         'authenticated',
         '{"provider": "email", "providers": ["email"]}',
         '{"tenant_id": "a0000000-0000-0000-0000-000000000002", "display_name": "27694@gn.cn"}',
+        '', '', '', '', '', '',
         NOW(), NOW(), 'authenticated', '00000000-0000-0000-0000-000000000000'
     ),
     (
@@ -56,6 +65,7 @@ INSERT INTO auth.users (
         'authenticated',
         '{"provider": "email", "providers": ["email"]}',
         '{"tenant_id": "a0000000-0000-0000-0000-000000000002", "display_name": "244233@gongniu.cn"}',
+        '', '', '', '', '', '',
         NOW(), NOW(), 'authenticated', '00000000-0000-0000-0000-000000000000'
     ),
     (
@@ -66,6 +76,7 @@ INSERT INTO auth.users (
         'authenticated',
         '{"provider": "email", "providers": ["email"]}',
         '{"tenant_id": "a0000000-0000-0000-0000-000000000001", "display_name": "276946@gn.cn"}',
+        '', '', '', '', '', '',
         NOW(), NOW(), 'authenticated', '00000000-0000-0000-0000-000000000000'
     ),
     (
@@ -76,6 +87,7 @@ INSERT INTO auth.users (
         'authenticated',
         '{"provider": "email", "providers": ["email"]}',
         '{"tenant_id": "a0000000-0000-0000-0000-000000000002", "display_name": "junmo Ma"}',
+        '', '', '', '', '', '',
         NOW(), NOW(), 'authenticated', '00000000-0000-0000-0000-000000000000'
     ),
     (
@@ -86,6 +98,7 @@ INSERT INTO auth.users (
         'authenticated',
         '{"provider": "email", "providers": ["email"]}',
         '{"tenant_id": "a0000000-0000-0000-0000-000000000001", "display_name": "277046@gongniu.cn"}',
+        '', '', '', '', '', '',
         NOW(), NOW(), 'authenticated', '00000000-0000-0000-0000-000000000000'
     ),
     (
@@ -96,6 +109,7 @@ INSERT INTO auth.users (
         'authenticated',
         '{"provider": "email", "providers": ["email"]}',
         '{"tenant_id": "a0000000-0000-0000-0000-000000000001", "display_name": "杨杭淇"}',
+        '', '', '', '', '', '',
         NOW(), NOW(), 'authenticated', '00000000-0000-0000-0000-000000000000'
     )
 ON CONFLICT (id) DO NOTHING;

@@ -10,7 +10,7 @@ pipeline {
         DEPLOY_HOST = '8.149.241.141'
         DEPLOY_PORT = '39222'
         DEPLOY_USER = 'root'
-        DEPLOY_PATH = '/opt/apps/neoflow'
+        DEPLOY_PATH = '/opt/apps/neoflow-test'
         SSH_CREDENTIALS_ID = 'aliyun-ecs-root'
     }
 
@@ -67,6 +67,152 @@ pipeline {
             }
         }
 
+        stage('目标服务器预检') {
+            steps {
+                echo '检查目标服务器 .env、端口和外部镜像...'
+                sshagent(credentials: [env.SSH_CREDENTIALS_ID]) {
+                    sh '''
+                        set -e
+
+                        SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -p ${DEPLOY_PORT}"
+
+                        ssh ${SSH_OPTS} "${DEPLOY_USER}@${DEPLOY_HOST}" "DEPLOY_PATH='${DEPLOY_PATH}' bash -s" <<'REMOTE_PREFLIGHT'
+set -eu
+
+COMPOSE_FILES="-f supabase/docker-compose.yml -f docker-compose.prod.yml"
+cd "${DEPLOY_PATH}"
+
+if [ ! -f .env ]; then
+  echo "ERROR: ${DEPLOY_PATH}/.env 不存在。请先按 env.example.txt 在目标服务器创建真实 .env。"
+  exit 1
+fi
+
+if [ ! -f supabase/docker-compose.yml ] || [ ! -f docker-compose.prod.yml ]; then
+  echo "ERROR: compose 文件不完整，请检查代码同步结果。"
+  exit 1
+fi
+
+get_env() {
+  awk -v key="$1" '
+    /^[[:space:]]*($|#)/ { next }
+    {
+      line=$0
+      sub(/\r$/, "", line)
+      split(line, parts, "=")
+      k=parts[1]
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+      if (k == key) {
+        sub(/^[^=]*=/, "", line)
+        gsub(/^"|"$/, "", line)
+        print line
+        exit
+      }
+    }
+  ' .env
+}
+
+missing_env=""
+for name in POSTGRES_PASSWORD JWT_SECRET ANON_KEY SERVICE_ROLE_KEY SUPABASE_PUBLIC_URL API_EXTERNAL_URL SITE_URL INGRESS_HTTP_PORT; do
+  value="$(get_env "${name}")"
+  case "${value}" in
+    ""|"<"*) missing_env="${missing_env} ${name}" ;;
+  esac
+done
+
+if [ -n "${missing_env}" ]; then
+  echo "ERROR: .env 以下必填项为空或仍是占位符:${missing_env}"
+  exit 1
+fi
+
+INGRESS_HTTP_PORT="$(get_env INGRESS_HTTP_PORT)"
+POSTGRES_PORT="$(get_env POSTGRES_PORT)"
+KONG_HTTP_PORT="$(get_env KONG_HTTP_PORT)"
+KONG_HTTPS_PORT="$(get_env KONG_HTTPS_PORT)"
+STUDIO_PORT="$(get_env STUDIO_PORT)"
+INGRESS_HTTP_PORT="${INGRESS_HTTP_PORT:-8080}"
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+KONG_HTTP_PORT="${KONG_HTTP_PORT:-8000}"
+KONG_HTTPS_PORT="${KONG_HTTPS_PORT:-8443}"
+STUDIO_PORT="${STUDIO_PORT:-3001}"
+
+echo "预检配置："
+echo "  DEPLOY_PATH=${DEPLOY_PATH}"
+echo "  SITE_URL=$(get_env SITE_URL)"
+echo "  SUPABASE_PUBLIC_URL=$(get_env SUPABASE_PUBLIC_URL)"
+echo "  API_EXTERNAL_URL=$(get_env API_EXTERNAL_URL)"
+echo "  INGRESS_HTTP_PORT=${INGRESS_HTTP_PORT}"
+echo "  POSTGRES_PORT=${POSTGRES_PORT}"
+echo "  KONG_HTTP_PORT=${KONG_HTTP_PORT}"
+echo "  KONG_HTTPS_PORT=${KONG_HTTPS_PORT}"
+echo "  STUDIO_PORT=${STUDIO_PORT}"
+
+check_port() {
+  port="$1"
+  label="$2"
+  allowed="$3"
+
+  if ss -ltn | awk -v suffix=":${port}" '$4 ~ suffix "$" { found=1 } END { exit found ? 0 : 1 }'; then
+    owner="$(docker ps --format '{{.Names}} {{.Ports}}' | awk -v needle=":${port}->" 'index($0, needle) { print }')"
+    if [ -n "${owner}" ] && printf '%s\n' "${owner}" | grep -Eq "${allowed}"; then
+      echo "  ${label} ${port} 已由当前应用容器占用，允许继续。"
+      return 0
+    fi
+
+    echo "ERROR: ${label} ${port} 已被占用。当前占用："
+    if [ -n "${owner}" ]; then
+      printf '%s\n' "${owner}"
+    else
+      ss -ltnp | awk -v suffix=":${port}" '$4 ~ suffix "$" { print }'
+    fi
+    exit 1
+  fi
+
+  echo "  ${label} ${port} 可用。"
+}
+
+check_port "${INGRESS_HTTP_PORT}" "ingress 宿主机端口" "^(neoflow-ingress) "
+check_port "${POSTGRES_PORT}" "Postgres 宿主机端口" "^(supabase-db) "
+check_port "${KONG_HTTP_PORT}" "Kong HTTP 宿主机端口" "^(supabase-kong) "
+check_port "${KONG_HTTPS_PORT}" "Kong HTTPS 宿主机端口" "^(supabase-kong) "
+check_port "${STUDIO_PORT}" "Studio 宿主机端口" "^(supabase-studio) "
+check_port "9999" "Auth 宿主机端口" "^(supabase-auth) "
+check_port "3002" "PostgREST 宿主机端口" "^(supabase-rest) "
+check_port "5000" "Storage 宿主机端口" "^(supabase-storage) "
+check_port "8082" "Meta 宿主机端口" "^(supabase-meta) "
+
+echo '校验 docker compose 配置...'
+docker compose ${COMPOSE_FILES} config >/dev/null
+
+failed_images=""
+for image in $(docker compose ${COMPOSE_FILES} config --images | sort -u); do
+  case "${image}" in
+    supabase-api|supabase-api-worker|supabase-web)
+      continue
+      ;;
+  esac
+
+  if ! docker image inspect "${image}" >/dev/null 2>&1; then
+    echo "目标服务器缺少外部镜像，尝试拉取: ${image}"
+    if ! docker pull "${image}"; then
+      failed_images="${failed_images}
+${image}"
+    fi
+  fi
+done
+
+if [ -n "${failed_images}" ]; then
+  echo 'ERROR: 以下外部镜像拉取失败。请检查目标服务器 Docker registry mirror，或提前 docker save/scp/docker load。'
+  printf '%s\n' "${failed_images}" | sed '/^$/d' | sed 's/^/  - /'
+  exit 1
+fi
+
+echo '目标服务器预检通过。'
+REMOTE_PREFLIGHT
+                    '''
+                }
+            }
+        }
+
         stage('部署到测试服务器') {
             steps {
                 echo '在测试服务器构建并启动容器...'
@@ -76,23 +222,78 @@ pipeline {
 
                         SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -p ${DEPLOY_PORT}"
 
-                        ssh ${SSH_OPTS} "${DEPLOY_USER}@${DEPLOY_HOST}" "
-                            set -e
-                            cd '${DEPLOY_PATH}'
+                        ssh ${SSH_OPTS} "${DEPLOY_USER}@${DEPLOY_HOST}" "DEPLOY_PATH='${DEPLOY_PATH}' bash -s" <<'REMOTE_DEPLOY'
+set -e
 
-                            echo '停止旧容器...'
-                            docker compose -f supabase/docker-compose.yml -f docker-compose.prod.yml stop || true
+COMPOSE_FILES="-f supabase/docker-compose.yml -f docker-compose.prod.yml"
+cd "${DEPLOY_PATH}"
 
-                            echo '构建并启动新容器...'
-                            docker compose -f supabase/docker-compose.yml -f docker-compose.prod.yml build
-                            docker compose -f supabase/docker-compose.yml -f docker-compose.prod.yml up -d
+get_env() {
+  awk -v key="$1" '
+    /^[[:space:]]*($|#)/ { next }
+    {
+      line=$0
+      sub(/\r$/, "", line)
+      split(line, parts, "=")
+      k=parts[1]
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+      if (k == key) {
+        sub(/^[^=]*=/, "", line)
+        gsub(/^"|"$/, "", line)
+        print line
+        exit
+      }
+    }
+  ' .env
+}
 
-                            echo '清理旧镜像...'
-                            docker image prune -f
+INGRESS_HTTP_PORT="$(get_env INGRESS_HTTP_PORT)"
+INGRESS_HTTP_PORT="${INGRESS_HTTP_PORT:-8080}"
 
-                            echo '查看容器状态...'
-                            docker compose -f supabase/docker-compose.yml -f docker-compose.prod.yml ps
-                        "
+dump_diagnostics() {
+  status="$?"
+  echo '=========================================='
+  echo "部署失败，退出码: ${status}"
+  echo 'compose 状态：'
+  docker compose ${COMPOSE_FILES} ps || true
+  echo '关键容器日志：'
+  docker compose ${COMPOSE_FILES} logs --tail=120 ingress api web api-worker kong auth db || true
+  echo '=========================================='
+  exit "${status}"
+}
+
+trap dump_diagnostics ERR
+
+echo '停止旧容器...'
+docker compose ${COMPOSE_FILES} stop || true
+
+echo '构建新镜像...'
+docker compose ${COMPOSE_FILES} build
+
+echo '启动容器...'
+docker compose ${COMPOSE_FILES} up -d
+
+echo '等待入口健康检查...'
+health_ok=false
+for i in $(seq 1 30); do
+  if curl -fsS "http://127.0.0.1:${INGRESS_HTTP_PORT}/api/health" >/dev/null 2>&1; then
+    health_ok=true
+    break
+  fi
+  sleep 2
+done
+
+if [ "${health_ok}" != "true" ]; then
+  echo "ERROR: http://127.0.0.1:${INGRESS_HTTP_PORT}/api/health 未在 60 秒内返回成功。"
+  false
+fi
+
+echo '清理旧镜像...'
+docker image prune -f
+
+echo '查看容器状态...'
+docker compose ${COMPOSE_FILES} ps
+REMOTE_DEPLOY
 
                         echo '=========================================='
                         echo "测试环境部署完成！构建编号: ${BUILD_NUMBER}"

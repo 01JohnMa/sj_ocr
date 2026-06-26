@@ -118,7 +118,7 @@ services:
       rest:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/status"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5000/status"]
       interval: 5s
       timeout: 5s
       retries: 3
@@ -173,7 +173,7 @@ services:
     image: supabase/studio:20240101-8e4a094
     container_name: supabase-studio
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/profile', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      test: ["CMD", "node", "-e", "const host=require('os').hostname(); require('http').get('http://' + host + ':3000/api/profile', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 5s
       timeout: 5s
       retries: 3
@@ -199,6 +199,11 @@ services:
   meta:
     image: supabase/postgres-meta:v0.75.0
     container_name: supabase-meta
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8081/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
     depends_on:
       db:
         condition: service_healthy
@@ -218,4 +223,3 @@ services:
 networks:
   supabase-network:
     driver: bridge
-
