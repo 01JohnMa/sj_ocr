@@ -1,0 +1,25 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+context: |
+  Project: NeoFlow document processing and template management.
+  Tech stack: FastAPI Python backend, React/TypeScript frontend, Supabase storage/database, Feishu Bitable push integration.
+  Domain: Admin users configure document extraction templates. End users upload documents/images for OCR/VLM extraction, review extracted fields, and push structured results to Feishu.
+  Convention: Keep requirements changes in openspec/changes/<change-id>. Use Chinese for product-facing rationale and scenarios when the surrounding task is Chinese.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours

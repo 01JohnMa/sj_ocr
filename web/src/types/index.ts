@@ -35,6 +35,10 @@ export interface AdminTemplate {
   push_attachment: boolean
   extraction_mode: 'ocr_llm' | 'vlm'
   per_page_extraction: boolean
+  output_mode?: 'bitable' | 'excel_template' | 'both'
+  excel_template_file_name?: string | null
+  excel_template_path?: string | null
+  excel_template_placeholders?: SDKExcelPlaceholder[]
   feishu_bitable_token: string | null
   feishu_table_id: string | null
 }
@@ -50,7 +54,7 @@ export interface CreateFieldPayload {
   review_allowed_values?: string[] | null
 }
 
-export interface UpdateFieldPayload extends Partial<CreateFieldPayload> {}
+export type UpdateFieldPayload = Partial<CreateFieldPayload>
 
 export interface CreateExamplePayload {
   example_input: string
@@ -59,7 +63,7 @@ export interface CreateExamplePayload {
   is_active?: boolean
 }
 
-export interface UpdateExamplePayload extends Partial<CreateExamplePayload> {}
+export type UpdateExamplePayload = Partial<CreateExamplePayload>
 
 export interface UpdateTemplateConfigPayload {
   feishu_bitable_token?: string
@@ -68,11 +72,100 @@ export interface UpdateTemplateConfigPayload {
   push_attachment?: boolean
   extraction_mode?: 'ocr_llm' | 'vlm'
   per_page_extraction?: boolean
+  output_mode?: 'bitable' | 'excel_template' | 'both'
+  excel_template_file_name?: string | null
+  excel_template_path?: string | null
+  excel_template_placeholders?: SDKExcelPlaceholder[]
 }
 
 export interface ReorderItem {
   id: string
   sort_order: number
+}
+
+// ============ AI Template SDK types ============
+
+export type SDKSessionState =
+  | 'ocr_completed'
+  | 'analyzed'
+  | 'template_confirmed'
+  | 'prompt_generated'
+  | 'code_generated'
+  | 'committed'
+
+export interface SDKRecommendedTenant {
+  suggest_name: string
+  suggest_code: string
+  reason: string
+  match_existing_tenant_id: string | null
+}
+
+export interface SDKDetectedField {
+  field_key: string
+  field_label: string
+  field_type: 'text' | 'date' | 'number'
+  extraction_hint: string
+  review_enforced: boolean
+  review_allowed_values: string[] | null
+  sample_value?: string | null
+}
+
+export interface SDKExcelPlaceholder {
+  sheet_name: string
+  coordinate: string
+  field_key: string
+  raw_value: string
+}
+
+export interface SDKSuggestedExample {
+  example_input: string
+  example_output: Record<string, unknown>
+}
+
+export interface SDKDocumentAnalysis {
+  recommended_doc_type: string
+  recommended_doc_code: string
+  confidence: number
+  recommended_tenant: SDKRecommendedTenant
+  detected_fields: SDKDetectedField[]
+  suggested_examples: SDKSuggestedExample[]
+}
+
+export interface SDKConfirmTemplatePayload {
+  template_name: string
+  template_code: string
+  description?: string | null
+  tenant_id?: string | null
+  tenant_name?: string | null
+  tenant_code?: string | null
+  extraction_mode: 'ocr_llm' | 'vlm'
+  per_page_extraction: boolean
+  fields: SDKDetectedField[]
+  examples: SDKSuggestedExample[]
+}
+
+export interface SDKCommitResult {
+  tenant_id: string
+  template_id: string
+  field_ids: string[]
+  example_ids: string[]
+  cleaner_module: string | null
+}
+
+export interface SDKSession {
+  id: string
+  file_name: string
+  state: SDKSessionState
+  excel_template_file_name: string | null
+  excel_placeholders: SDKExcelPlaceholder[]
+  ocr_text: string
+  ocr_confidence: number
+  page_count: number
+  analysis: SDKDocumentAnalysis | null
+  confirmed_template: SDKConfirmTemplatePayload | null
+  prompt: string | null
+  cleaner_code: string | null
+  commit_result: SDKCommitResult | null
 }
 
 // ============ Document types ============
@@ -193,6 +286,3 @@ export interface BatchJobStatus {
   total?: number
   completed_count?: number
 }
-
-
-

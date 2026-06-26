@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://api.deepseek.com"
     LLM_TEMPERATURE: float = 0.5
 
+    # ============ OpenAI Agents SDK 配置 ============
+    SDK_MODEL_ID: str = ""
+    SDK_API_KEY: str = ""
+    SDK_BASE_URL: str = ""
+    SDK_TEMPERATURE: float = 0.2
+
     # ============ OCR模型路径 ============
     OCR_DET_MODEL_PATH: str = "./model/PP-OCRv5_server_det_infer"
     OCR_REC_MODEL_PATH: str = "./model/PP-OCRv5_server_rec_infer"

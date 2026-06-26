@@ -8,13 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
-import { Settings, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Settings, Sparkles, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FeishuConfigTab } from './AdminFeishuTab'
 import { FieldsTab } from './AdminFieldsTab'
 import { ExamplesTab } from './AdminExamplesTab'
+import { AiTemplateWizard } from '@/components/admin/AiTemplateWizard'
 
-type Tab = 'feishu' | 'fields' | 'examples'
+type Tab = 'ai' | 'feishu' | 'fields' | 'examples'
 
 interface Tenant {
   id: string
@@ -91,14 +92,26 @@ export function AdminConfig() {
   const handleTemplateChange = (id: string) => {
     setSelectedTemplateId(id)
     setSelectedTemplate(templates.find((t) => t.id === id) ?? null)
-    setActiveTab('feishu')
+    setActiveTab(id ? 'feishu' : 'ai')
   }
 
   const tabs: { key: Tab; label: string }[] = [
+    { key: 'ai', label: 'AI 生成模板' },
     { key: 'feishu', label: '飞书表格配置' },
     { key: 'fields', label: '识别字段管理' },
     { key: 'examples', label: 'Few-shot 示例' },
   ]
+
+  const refreshTemplates = async () => {
+    if (!selectedTenantId) return
+    setLoadingTemplates(true)
+    try {
+      const fresh = await adminApi.fetchAdminTemplates(selectedTenantId)
+      setTemplates(fresh)
+    } finally {
+      setLoadingTemplates(false)
+    }
+  }
 
   if (!profile) {
     return (
@@ -192,21 +205,37 @@ export function AdminConfig() {
               </Select>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedTemplateId('')
+              setSelectedTemplate(null)
+              setActiveTab('ai')
+            }}
+            disabled={!selectedTenantId}
+            className="mb-0 h-10 inline-flex items-center gap-2 rounded-lg border border-primary-500/40 px-4 text-sm font-medium text-primary-300 hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Sparkles className="h-4 w-4" />
+            AI 生成模板
+          </button>
         </div>
       </Card>
 
-      {selectedTemplate ? (
+      {selectedTenantId ? (
         <div className="space-y-4">
           <div className="flex gap-1 rounded-xl border border-border-default bg-bg-secondary p-1 w-fit">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
+                disabled={tab.key !== 'ai' && !selectedTemplate}
                 className={cn(
                   'rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200',
                   activeTab === tab.key
                     ? 'bg-primary-500/10 text-primary-400 border border-primary-500/20'
                     : 'text-text-secondary hover:text-text-primary',
+                  tab.key !== 'ai' && !selectedTemplate && 'cursor-not-allowed opacity-50 hover:text-text-secondary',
                 )}
               >
                 {tab.label}
@@ -215,7 +244,10 @@ export function AdminConfig() {
           </div>
 
           <Card className="p-6">
-            {activeTab === 'feishu' && (
+            {activeTab === 'ai' && (
+              <AiTemplateWizard tenantId={selectedTenantId} onCommitted={refreshTemplates} />
+            )}
+            {activeTab === 'feishu' && selectedTemplate && (
               <FeishuConfigTab
                 template={selectedTemplate}
                 onSaved={(updated) => {
@@ -224,8 +256,14 @@ export function AdminConfig() {
                 }}
               />
             )}
-            {activeTab === 'fields' && <FieldsTab templateId={selectedTemplate.id} />}
-            {activeTab === 'examples' && <ExamplesTab templateId={selectedTemplate.id} />}
+            {activeTab === 'fields' && selectedTemplate && <FieldsTab templateId={selectedTemplate.id} />}
+            {activeTab === 'examples' && selectedTemplate && <ExamplesTab templateId={selectedTemplate.id} />}
+            {activeTab !== 'ai' && !selectedTemplate && (
+              <div className="flex flex-col items-center justify-center py-16 text-text-muted">
+                <Settings className="h-10 w-10 mb-4 opacity-20" />
+                <p className="text-sm">请选择要配置的模板</p>
+              </div>
+            )}
           </Card>
         </div>
       ) : (

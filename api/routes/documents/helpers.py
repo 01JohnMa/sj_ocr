@@ -4,14 +4,19 @@
 import os
 import json
 import aiofiles
+import re
+import shutil
+from pathlib import Path
 from typing import Optional
 from datetime import datetime
+from uuid import uuid4
 from fastapi import UploadFile
 from loguru import logger
 
 from config.settings import settings
 from services.supabase_service import supabase_service
 from services.template_service import template_service
+from sdk.excel_template import fill_excel_template
 from api.jobs import build_feishu_push_dedupe_key, has_feishu_push_record, record_feishu_push
 
 
@@ -90,6 +95,53 @@ def raise_auth_or_processing_error(error: Exception, message: str) -> None:
     raise ProcessingError(f"{message}: {str(error)}")
 
 
+def _safe_excel_output_name(name: str) -> str:
+    stem = Path(name or "excel_output").stem
+    stem = re.sub(r"[^A-Za-z0-9._\-\u4e00-\u9fff]+", "_", stem).strip("._-")
+    return f"{(stem or 'excel_output')[:80]}.xlsx"
+
+
+def _build_excel_output_path(document_id: str, file_name_for_push: str) -> str:
+    output_dir = Path(settings.UPLOAD_FOLDER) / "excel_outputs" / f"{document_id}_{uuid4().hex}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return str(output_dir / _safe_excel_output_name(file_name_for_push))
+
+
+def _generate_excel_output_attachment(
+    template: dict,
+    extraction_data: dict,
+    document_id: str,
+    file_name_for_push: str,
+) -> Optional[str]:
+    output_mode = template.get("output_mode") or "bitable"
+    if output_mode not in {"excel_template", "both"}:
+        return None
+
+    excel_template_path = template.get("excel_template_path")
+    if not excel_template_path:
+        return None
+    if not os.path.exists(excel_template_path):
+        logger.warning(f"固定 Excel 模板文件不存在，跳过生成: {excel_template_path}")
+        return None
+
+    output_path = _build_excel_output_path(document_id, file_name_for_push)
+    try:
+        result = fill_excel_template(excel_template_path, output_path, extraction_data)
+        if result.missing_fields:
+            logger.warning(
+                "固定 Excel 模板存在未填充字段: document_id={}, fields={}",
+                document_id,
+                result.missing_fields,
+            )
+        return output_path
+    except Exception as exc:
+        logger.warning(f"固定 Excel 模板生成失败，跳过附件生成: {exc}")
+        output_parent = Path(output_path).parent
+        if output_parent.exists():
+            shutil.rmtree(output_parent, ignore_errors=True)
+        return None
+
+
 async def push_to_feishu(
     template: dict,
     extraction_data: dict,
@@ -149,27 +201,42 @@ async def push_to_feishu(
         field_mapping["file_name"] = "文件名"
     push_data["file_name"] = file_name_for_push
 
-    # 附件上传：传入的文件全部上传，调用方负责按 push_attachment 过滤
-    file_paths = (
-        source_file_path if isinstance(source_file_path, list)
-        else ([source_file_path] if source_file_path else [])
+    generated_excel_path = _generate_excel_output_attachment(
+        template=template,
+        extraction_data=extraction_data,
+        document_id=document_id,
+        file_name_for_push=file_name_for_push,
     )
-    file_tokens = []
-    for fp in file_paths:
-        if fp and os.path.exists(fp):
-            token = await feishu_service._upload_file_to_feishu(fp, bitable_token)
-            if token:
-                file_tokens.append({"file_token": token})
-    if file_tokens:
-        push_data["attachment"] = file_tokens
-        field_mapping["attachment"] = "文件"
 
-    success = await feishu_service.push_by_template(push_data, field_mapping, bitable_token, table_id)
-    if success:
-        await record_feishu_push(effective_dedupe_key, document_id, template.get("id"))
-        logger.info(f"{log_prefix}飞书推送成功: {document_id}")
-    else:
-        logger.warning(f"{log_prefix}飞书推送失败: {document_id}")
+    try:
+        # 附件上传：传入的文件全部上传，调用方负责按 push_attachment 过滤。
+        # 固定 Excel 是模板输出，不受原始文件 push_attachment 开关影响。
+        file_paths = (
+            source_file_path.copy() if isinstance(source_file_path, list)
+            else ([source_file_path] if source_file_path else [])
+        )
+        if generated_excel_path:
+            file_paths.append(generated_excel_path)
+
+        file_tokens = []
+        for fp in file_paths:
+            if fp and os.path.exists(fp):
+                token = await feishu_service._upload_file_to_feishu(fp, bitable_token)
+                if token:
+                    file_tokens.append({"file_token": token})
+        if file_tokens:
+            push_data["attachment"] = file_tokens
+            field_mapping["attachment"] = "文件"
+
+        success = await feishu_service.push_by_template(push_data, field_mapping, bitable_token, table_id)
+        if success:
+            await record_feishu_push(effective_dedupe_key, document_id, template.get("id"))
+            logger.info(f"{log_prefix}飞书推送成功: {document_id}")
+        else:
+            logger.warning(f"{log_prefix}飞书推送失败: {document_id}")
+    finally:
+        if generated_excel_path:
+            shutil.rmtree(Path(generated_excel_path).parent, ignore_errors=True)
 
 
 async def handle_processing_success(

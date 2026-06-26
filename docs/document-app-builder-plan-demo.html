@@ -1,0 +1,2082 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NeoFlow 文档应用构建器方案 Demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f5f7fb;
+        --surface: #ffffff;
+        --surface-soft: #f8fafc;
+        --surface-strong: #eef3f8;
+        --ink: #18212f;
+        --ink-soft: #354052;
+        --muted: #667085;
+        --faint: #8a96a8;
+        --line: #d8e0ea;
+        --line-strong: #bdc8d8;
+        --accent: #2563eb;
+        --accent-soft: #e8f0ff;
+        --teal: #0f766e;
+        --teal-soft: #e7f6f3;
+        --amber: #b45309;
+        --amber-soft: #fff4df;
+        --red: #c2410c;
+        --red-soft: #fff0e8;
+        --shadow: 0 18px 45px rgba(22, 34, 51, 0.08);
+        --radius: 8px;
+        --mono:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family:
+          ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        letter-spacing: 0;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        letter-spacing: 0;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .page-top {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(14px);
+        position: sticky;
+        top: 0;
+        z-index: 30;
+      }
+
+      .brand-block {
+        min-width: 0;
+      }
+
+      .eyebrow {
+        margin: 0 0 4px;
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(20px, 2.2vw, 28px);
+        line-height: 1.18;
+        text-wrap: pretty;
+      }
+
+      .top-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .pill {
+        display: inline-flex;
+        min-height: 30px;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--muted);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .pill strong {
+        color: var(--ink-soft);
+        font-weight: 700;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 18px;
+        width: min(1600px, calc(100vw - 32px));
+        margin: 18px auto 40px;
+      }
+
+      .rail {
+        align-self: start;
+        position: sticky;
+        top: 86px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .rail-panel,
+      .app-shell,
+      .plan-section {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .rail-panel {
+        padding: 12px;
+      }
+
+      .rail-title {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .nav-button {
+        width: 100%;
+        min-height: 42px;
+        margin: 2px 0;
+        padding: 9px 10px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--ink-soft);
+        text-align: left;
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr);
+        gap: 8px;
+        align-items: center;
+      }
+
+      .nav-button:hover,
+      .nav-button:focus-visible {
+        border-color: var(--line);
+        background: var(--surface-soft);
+        outline: none;
+      }
+
+      .nav-button.active {
+        border-color: #b8cffd;
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .nav-number {
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+        background: var(--surface-strong);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .nav-button.active .nav-number {
+        background: var(--accent);
+        color: #ffffff;
+      }
+
+      .rail-note {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .app-shell {
+        overflow: hidden;
+      }
+
+      .app-toolbar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+      }
+
+      .toolbar-main {
+        min-width: 0;
+      }
+
+      .toolbar-main h2 {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.25;
+      }
+
+      .toolbar-main p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+        text-wrap: pretty;
+      }
+
+      .toolbar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .btn {
+        min-height: 36px;
+        padding: 0 12px;
+        border: 1px solid var(--line-strong);
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--ink-soft);
+        font-size: 13px;
+        font-weight: 700;
+        transition:
+          background 160ms ease,
+          border-color 160ms ease,
+          transform 160ms ease;
+      }
+
+      .btn:hover {
+        background: var(--surface-soft);
+        border-color: var(--muted);
+      }
+
+      .btn:active {
+        transform: translateY(1px);
+      }
+
+      .btn.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #ffffff;
+      }
+
+      .btn.primary:hover {
+        background: #1d4ed8;
+      }
+
+      .btn.subtle {
+        border-color: transparent;
+        background: var(--surface-strong);
+      }
+
+      .btn.warn {
+        border-color: #f0c077;
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .screen {
+        display: none;
+        min-height: 650px;
+        padding: 18px;
+        background: var(--surface-soft);
+      }
+
+      .screen.active {
+        display: block;
+      }
+
+      .mode-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .mode-card {
+        position: relative;
+        min-height: 184px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        text-align: left;
+        transition:
+          border-color 160ms ease,
+          transform 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .mode-card:hover,
+      .mode-card:focus-visible {
+        border-color: var(--accent);
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
+        outline: none;
+        transform: translateY(-1px);
+      }
+
+      .mode-card.active {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+
+      .mode-kicker {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .mode-card h3 {
+        margin: 12px 0 8px;
+        font-size: 17px;
+      }
+
+      .mode-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.62;
+      }
+
+      .mode-card .tag-row {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        left: 14px;
+      }
+
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .tag {
+        display: inline-flex;
+        min-height: 24px;
+        align-items: center;
+        padding: 0 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--surface-soft);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .tag.blue {
+        border-color: #bad0ff;
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .tag.green {
+        border-color: #addfd8;
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+
+      .tag.amber {
+        border-color: #f3d49b;
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .tag.red {
+        border-color: #ffc4aa;
+        background: var(--red-soft);
+        color: var(--red);
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.18fr);
+        gap: 14px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .panel-head {
+        display: flex;
+        gap: 12px;
+        align-items: start;
+        justify-content: space-between;
+        padding: 14px 14px 10px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel-head h3 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .panel-head p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .panel-body {
+        padding: 14px;
+      }
+
+      .upload-drop {
+        display: grid;
+        min-height: 220px;
+        place-items: center;
+        padding: 22px;
+        border: 1px dashed var(--line-strong);
+        border-radius: var(--radius);
+        background: repeating-linear-gradient(
+          135deg,
+          #ffffff,
+          #ffffff 10px,
+          #f7fafc 10px,
+          #f7fafc 20px
+        );
+        text-align: center;
+      }
+
+      .upload-drop strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 17px;
+      }
+
+      .upload-drop span {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .parse-stack {
+        display: grid;
+        gap: 10px;
+      }
+
+      .parse-item {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface-soft);
+      }
+
+      .parse-item small {
+        color: var(--muted);
+      }
+
+      .progress {
+        height: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--surface-strong);
+      }
+
+      .progress span {
+        display: block;
+        width: 72%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--accent), var(--teal));
+      }
+
+      .builder-grid {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr) 340px;
+        gap: 14px;
+        align-items: start;
+      }
+
+      .doc-preview {
+        min-height: 582px;
+      }
+
+      .preview-page {
+        min-height: 480px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: #ffffff;
+        box-shadow: inset 0 0 0 1px rgba(216, 224, 234, 0.3);
+      }
+
+      .preview-line {
+        height: 10px;
+        margin-bottom: 10px;
+        border-radius: 999px;
+        background: #e3e9f1;
+      }
+
+      .preview-line.wide {
+        width: 92%;
+      }
+
+      .preview-line.mid {
+        width: 68%;
+      }
+
+      .preview-line.short {
+        width: 42%;
+      }
+
+      .preview-table {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: 18px 0;
+        border-top: 1px solid var(--line);
+        border-left: 1px solid var(--line);
+      }
+
+      .preview-cell {
+        min-height: 38px;
+        padding: 8px;
+        border-right: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .highlight {
+        background: var(--amber-soft);
+        color: var(--amber);
+        font-weight: 700;
+      }
+
+      .field-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .field-toolbar .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .table-wrap {
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 780px;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+        font-size: 13px;
+      }
+
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--surface-soft);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      tbody tr {
+        transition: background 140ms ease;
+      }
+
+      tbody tr:hover {
+        background: #fbfdff;
+      }
+
+      tbody tr.selected {
+        background: var(--accent-soft);
+      }
+
+      .field-key {
+        font-family: var(--mono);
+        color: var(--teal);
+        font-size: 12px;
+      }
+
+      .hint {
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .inspector {
+        min-height: 582px;
+      }
+
+      .form-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .field-group {
+        display: grid;
+        gap: 6px;
+      }
+
+      label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--line-strong);
+        border-radius: 7px;
+        background: #ffffff;
+        color: var(--ink);
+        font-size: 13px;
+      }
+
+      input,
+      select {
+        min-height: 36px;
+        padding: 0 10px;
+      }
+
+      textarea {
+        min-height: 104px;
+        resize: vertical;
+        padding: 10px;
+        line-height: 1.55;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        outline: none;
+      }
+
+      .check-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        color: var(--ink-soft);
+        font-size: 13px;
+      }
+
+      .check-row input {
+        width: 16px;
+        height: 16px;
+        min-height: 16px;
+      }
+
+      .chat-box {
+        display: grid;
+        gap: 10px;
+        max-height: 250px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .chat-msg {
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-soft);
+        color: var(--ink-soft);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .chat-msg.agent {
+        border-color: #c9ddff;
+        background: var(--accent-soft);
+      }
+
+      .chat-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .patch-card {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid #f0c077;
+        border-radius: var(--radius);
+        background: var(--amber-soft);
+        color: var(--amber);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .prompt-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+        gap: 14px;
+      }
+
+      pre {
+        overflow: auto;
+        margin: 0;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: #111827;
+        color: #d7e2f1;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.65;
+        white-space: pre-wrap;
+      }
+
+      .placeholder-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .placeholder {
+        display: grid;
+        gap: 4px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface-soft);
+      }
+
+      .placeholder code {
+        color: var(--teal);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .placeholder span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .summary-card {
+        min-height: 140px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .summary-card strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 24px;
+      }
+
+      .summary-card span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .checklist {
+        display: grid;
+        gap: 9px;
+        margin-top: 14px;
+      }
+
+      .checklist-item {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr);
+        gap: 9px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface-soft);
+        color: var(--ink-soft);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .checkmark {
+        display: grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        background: var(--teal);
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .plan-section {
+        grid-column: 1 / -1;
+        overflow: hidden;
+      }
+
+      .plan-head {
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--line);
+        background: #ffffff;
+      }
+
+      .plan-head h2 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .plan-head p {
+        max-width: 980px;
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      .plan-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        padding: 18px;
+        background: var(--surface-soft);
+      }
+
+      .plan-card {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .plan-card h3 {
+        margin: 0 0 10px;
+        font-size: 16px;
+      }
+
+      .plan-card ul,
+      .plan-card ol {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .plan-card li + li {
+        margin-top: 6px;
+      }
+
+      .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 40;
+        max-width: min(420px, calc(100vw - 36px));
+        padding: 12px 14px;
+        border: 1px solid #addfd8;
+        border-radius: var(--radius);
+        background: #ffffff;
+        box-shadow: var(--shadow);
+        color: var(--teal);
+        font-size: 13px;
+        line-height: 1.5;
+        opacity: 0;
+        transform: translateY(8px);
+        pointer-events: none;
+        transition:
+          opacity 180ms ease,
+          transform 180ms ease;
+      }
+
+      .toast.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      @media (max-width: 1240px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .rail {
+          position: static;
+          grid-template-columns: 1fr;
+        }
+
+        .rail-panel {
+          display: grid;
+          gap: 8px;
+        }
+
+        .rail-panel nav {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 6px;
+        }
+
+        .nav-button {
+          margin: 0;
+        }
+
+        .builder-grid {
+          grid-template-columns: 260px minmax(0, 1fr);
+        }
+
+        .inspector {
+          grid-column: 1 / -1;
+          min-height: 0;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .page-top {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .top-meta {
+          justify-content: flex-start;
+        }
+
+        .layout {
+          width: min(100vw - 20px, 1600px);
+          margin-top: 10px;
+        }
+
+        .app-toolbar,
+        .toolbar-actions {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .toolbar-actions {
+          width: 100%;
+        }
+
+        .mode-grid,
+        .two-col,
+        .builder-grid,
+        .prompt-grid,
+        .summary-grid,
+        .plan-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .mode-card {
+          min-height: 150px;
+        }
+
+        .rail-panel nav {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .screen {
+          padding: 12px;
+        }
+
+        .parse-item {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="page-top">
+      <div class="brand-block">
+        <p class="eyebrow">NeoFlow Admin Prototype</p>
+        <h1>文档应用构建器：字段草案编辑与 Excel 占位符方案</h1>
+      </div>
+      <div class="top-meta">
+        <span class="pill"><strong>范围</strong> 评审 demo，不接真实 API</span>
+        <span class="pill"><strong>入口</strong> 现有 /admin 的 AI 生成模板</span>
+        <span class="pill"><strong>输出</strong> 多维表格 / 固定 Excel</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="rail" aria-label="演示导航">
+        <div class="rail-panel">
+          <p class="rail-title">交互步骤</p>
+          <nav>
+            <button class="nav-button active" data-step="start">
+              <span class="nav-number">1</span>
+              <span>选择起点</span>
+            </button>
+            <button class="nav-button" data-step="parse">
+              <span class="nav-number">2</span>
+              <span>上传解析</span>
+            </button>
+            <button class="nav-button" data-step="draft">
+              <span class="nav-number">3</span>
+              <span>字段草案</span>
+            </button>
+            <button class="nav-button" data-step="prompt">
+              <span class="nav-number">4</span>
+              <span>Prompt 输出</span>
+            </button>
+            <button class="nav-button" data-step="publish">
+              <span class="nav-number">5</span>
+              <span>确认发布</span>
+            </button>
+            <a class="nav-button" href="#implementation-plan">
+              <span class="nav-number">P</span>
+              <span>修改计划</span>
+            </a>
+          </nav>
+          <p class="rail-note">
+            这个页面用于评审交互与实施边界。点击步骤、字段行、模式卡片和右侧表单可以看到状态变化。
+          </p>
+        </div>
+        <div class="rail-panel">
+          <p class="rail-title">当前决策</p>
+          <div class="tag-row">
+            <span class="tag blue" id="modeTag">样本文档开始</span>
+            <span class="tag green">字段先草案再确认</span>
+            <span class="tag amber">Excel 占位符作为填充槽位</span>
+          </div>
+        </div>
+      </aside>
+
+      <section class="app-shell" aria-label="可交互演示">
+        <div class="app-toolbar">
+          <div class="toolbar-main">
+            <h2 id="screenTitle">选择构建方式</h2>
+            <p id="screenDescription">
+              参考 LlamaParse Agents 的构建入口，但按 NeoFlow 的业务分成“样本文档、固定
+              Excel、对话创建、复制模板”四种起点。
+            </p>
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn subtle" id="applyPatchBtn">模拟对话补丁</button>
+            <button class="btn" id="addFieldBtn">新增字段</button>
+            <button class="btn primary" id="nextBtn">下一步</button>
+          </div>
+        </div>
+
+        <section class="screen active" data-screen="start">
+          <div class="mode-grid">
+            <button class="mode-card active" data-mode="sample">
+              <span class="mode-kicker">推荐起点</span>
+              <h3>从样本文档开始</h3>
+              <p>
+                上传一份待解析文档，系统先做 OCR / 结构理解，再生成字段草案，用户按字段逐项修改。
+              </p>
+              <div class="tag-row">
+                <span class="tag blue">无 Excel 也可用</span>
+                <span class="tag green">先看草案</span>
+              </div>
+            </button>
+            <button class="mode-card" data-mode="excel">
+              <span class="mode-kicker">固定版式</span>
+              <h3>空 Excel 填报模板</h3>
+              <p>
+                先上传待识别图片/文档；可选上传空 xlsx 输出模板，系统从图片/文档解析字段值，再按
+                <code>{{field_key}}</code> 填回模板。
+              </p>
+              <div class="tag-row">
+                <span class="tag blue">解析源是图片/文档</span>
+                <span class="tag amber">保留样式</span>
+              </div>
+            </button>
+            <button class="mode-card" data-mode="chat">
+              <span class="mode-kicker">需求不清晰</span>
+              <h3>通过对话创建</h3>
+              <p>
+                上传文档后，AI 先给字段建议；后续对话只生成可审查的字段补丁，不直接改模板。
+              </p>
+              <div class="tag-row">
+                <span class="tag blue">自然语言</span>
+                <span class="tag amber">需确认补丁</span>
+              </div>
+            </button>
+            <button class="mode-card" data-mode="clone">
+              <span class="mode-kicker">低风险复用</span>
+              <h3>复制已有模板</h3>
+              <p>
+                从相近模板开始，比较字段差异、抽取要求和输出配置，再局部修改后发布。
+              </p>
+              <div class="tag-row">
+                <span class="tag green">适合迭代</span>
+                <span class="tag">减少重复</span>
+              </div>
+            </button>
+          </div>
+          <div class="panel" style="margin-top: 14px">
+            <div class="panel-head">
+              <div>
+                <h3>本次方案的产品边界</h3>
+                <p>
+                  不是新建一个公开页面，而是在现有管理后台的 AI 生成模板能力里升级为“文档应用构建器”。
+                </p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="summary-grid">
+                <div class="summary-card">
+                  <strong>1</strong>
+                  <span>入口保留在 /admin，面向 tenant_admin / super_admin。</span>
+                </div>
+                <div class="summary-card">
+                  <strong>2</strong>
+                  <span>先生成字段草案，用户确认后才生成 prompt / cleaner / 输出配置。</span>
+                </div>
+                <div class="summary-card">
+                  <strong>3</strong>
+                  <span>Excel 空模板用 field_key 标出填充槽位，不要求维护单独的单元格映射表。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="parse">
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>上传入口</h3>
+                  <p>同一流程支持样本文档和 Excel 模板；Excel 模式需要空模板和待识别图片/文档两类输入。</p>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="upload-drop">
+                  <div>
+                    <strong id="uploadTitle">上传样本文档</strong>
+                    <span id="uploadCopy">
+                      支持 PDF、图片、Excel、Word。上传后先解析正文、表格和视觉区域，再生成字段草案。
+                    </span>
+                    <div class="tag-row" style="justify-content: center; margin-top: 14px">
+                      <span class="tag blue">OCR 文本</span>
+                      <span class="tag green">表格结构</span>
+                      <span class="tag amber">区域证据</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>解析状态</h3>
+                  <p>解析完成后不会直接写模板，而是进入字段草案页让用户审查。</p>
+                </div>
+                <span class="tag green">模拟完成</span>
+              </div>
+              <div class="panel-body parse-stack">
+                <div class="parse-item">
+                  <strong>文档理解</strong>
+                  <div>
+                    <div class="progress"><span style="width: 92%"></span></div>
+                    <small>识别到 4 个主要信息区、1 个明细表、2 个签章/备注区域。</small>
+                  </div>
+                  <span class="tag green">完成</span>
+                </div>
+                <div class="parse-item">
+                  <strong>字段候选</strong>
+                  <div>
+                    <div class="progress"><span style="width: 84%"></span></div>
+                    <small>生成 8 个候选字段，其中 5 个可直接写入模板，3 个需要人工确认。</small>
+                  </div>
+                  <span class="tag amber">待审</span>
+                </div>
+                <div class="parse-item">
+                  <strong>Excel 填充槽位</strong>
+                  <div>
+                    <div class="progress"><span id="excelProgress" style="width: 54%"></span></div>
+                    <small id="excelCopy">
+                      未上传固定模板时跳过；上传空 xlsx 后扫描 {{field_key}}，作为图片解析结果的填充目标。
+                    </small>
+                  </div>
+                  <span class="tag" id="excelStatus">可选</span>
+                </div>
+                <div class="parse-item">
+                  <strong>输出建议</strong>
+                  <div>
+                    <div class="progress"><span style="width: 70%"></span></div>
+                    <small>推荐输出到多维表格，同时允许生成固定 Excel 报告文件。</small>
+                  </div>
+                  <span class="tag blue">建议</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="draft">
+          <div class="builder-grid">
+            <div class="panel doc-preview">
+              <div class="panel-head">
+                <div>
+                  <h3>文档证据</h3>
+                  <p>左侧保留解析证据，字段修改时能追溯来源。</p>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="preview-page" aria-label="文档预览占位">
+                  <div class="preview-line wide"></div>
+                  <div class="preview-line mid"></div>
+                  <div class="preview-line short"></div>
+                  <div class="preview-table">
+                    <div class="preview-cell highlight">订单号</div>
+                    <div class="preview-cell">NOZS0311046</div>
+                    <div class="preview-cell">客户信息</div>
+                    <div class="preview-cell">品名</div>
+                    <div class="preview-cell highlight">数量</div>
+                    <div class="preview-cell highlight">规格</div>
+                    <div class="preview-cell">包装</div>
+                    <div class="preview-cell">备注</div>
+                    <div class="preview-cell">结论</div>
+                  </div>
+                  <div class="preview-line wide"></div>
+                  <div class="preview-line wide"></div>
+                  <div class="preview-line mid"></div>
+                  <div class="preview-line short"></div>
+                  <div style="margin-top: 22px" class="tag-row">
+                    <span class="tag amber">黄色为当前字段证据</span>
+                    <span class="tag">支持 OCR 片段定位</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>AI 字段草案</h3>
+                  <p>用户在这里按字段逐项修改：字段、类型、抽取要求、来源和输出目标。</p>
+                </div>
+                <span class="tag blue" id="fieldCountTag">8 个字段</span>
+              </div>
+              <div class="panel-body">
+                <div class="field-toolbar">
+                  <div class="filters">
+                    <button class="btn subtle" data-filter="all">全部</button>
+                    <button class="btn subtle" data-filter="needs_review">需确认</button>
+                    <button class="btn subtle" data-filter="excel">Excel 槽位</button>
+                  </div>
+                  <button class="btn warn" id="acceptAllBtn">接受当前草案</button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>字段</th>
+                        <th>field_key</th>
+                        <th>类型</th>
+                        <th>抽取要求</th>
+                        <th>来源</th>
+                        <th>状态</th>
+                      </tr>
+                    </thead>
+                    <tbody id="fieldTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel inspector">
+              <div class="panel-head">
+                <div>
+                  <h3>字段检查器</h3>
+                  <p>右侧是用户确认前的主编辑区；改动会同步回字段表。</p>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <div class="field-group">
+                    <label for="fieldLabel">字段名称</label>
+                    <input id="fieldLabel" />
+                  </div>
+                  <div class="field-group">
+                    <label for="fieldKey">field_key</label>
+                    <input id="fieldKey" />
+                  </div>
+                  <div class="field-group">
+                    <label for="fieldType">类型</label>
+                    <select id="fieldType">
+                      <option value="string">string</option>
+                      <option value="number">number</option>
+                      <option value="date">date</option>
+                      <option value="boolean">boolean</option>
+                      <option value="enum">enum</option>
+                      <option value="array">array</option>
+                    </select>
+                  </div>
+                  <div class="field-group">
+                    <label for="fieldHint">抽取要求</label>
+                    <textarea id="fieldHint"></textarea>
+                  </div>
+                  <div class="field-group">
+                    <label>复核与输出</label>
+                    <label class="check-row">
+                      <input type="checkbox" id="fieldRequired" />
+                      必填字段
+                    </label>
+                    <label class="check-row">
+                      <input type="checkbox" id="fieldReview" />
+                      低置信度时进入人工复核
+                    </label>
+                    <label class="check-row">
+                      <input type="checkbox" id="targetBitable" />
+                      输出到多维表格
+                    </label>
+                    <label class="check-row">
+                      <input type="checkbox" id="targetExcel" />
+                      输出到固定 Excel
+                    </label>
+                  </div>
+                  <div class="field-group">
+                    <label>已有模板配置</label>
+                    <div class="tag-row" id="templateConfigTags"></div>
+                  </div>
+                  <button class="btn primary" id="confirmFieldBtn">确认这个字段</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="prompt">
+          <div class="prompt-grid">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>Prompt 与字段 schema 预览</h3>
+                  <p>字段确认后再生成 prompt，避免每次对话直接改最终模板。</p>
+                </div>
+                <button class="btn primary" id="generatePromptBtn">重新生成预览</button>
+              </div>
+              <div class="panel-body">
+                <pre id="promptPreview">系统将从字段草案生成 extraction_prompt_template。
+
+规则示例：
+- 只输出 JSON。
+- 字段 key 必须与 field_schema 完全一致。
+- 找不到信息时返回 null，不要猜测。
+- 对数量、日期、规格字段做规范化。
+- 对 review_enforced 字段保留 evidence_snippet。</pre>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>固定 Excel 填充模板</h3>
+                  <p>Excel 是空的输出版式，只用 {{field_key}} 标记填充槽位；字段值来自待识别图片/文档。</p>
+                </div>
+                <span class="tag amber">占位符驱动</span>
+              </div>
+              <div class="panel-body">
+                <div class="placeholder-grid" id="placeholderGrid"></div>
+                <div class="patch-card" style="margin-top: 14px">
+                  <strong>实现约束</strong>
+                  <span>
+                    输出时复制空模板 xlsx，逐单元格把图片/文档抽取结果写入占位符；保留样式、合并单元格、公式和图片。找不到字段值时保留空值并记录复核告警。
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="publish">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>发布前确认</h3>
+                <p>提交前必须让管理员看到最终会写入哪些模板配置、输出模式和复核规则。</p>
+              </div>
+              <button class="btn primary" id="publishBtn">模拟发布</button>
+            </div>
+            <div class="panel-body">
+              <div class="summary-grid">
+                <div class="summary-card">
+                  <strong id="publishFields">8</strong>
+                  <span>确认后的字段数量；未确认字段不会进入正式模板。</span>
+                </div>
+                <div class="summary-card">
+                  <strong id="publishOutputs">2</strong>
+                  <span>输出目标：多维表格 + 固定 Excel，可按模板配置选择。</span>
+                </div>
+                <div class="summary-card">
+                  <strong>Admin</strong>
+                  <span>继续保持管理员入口，并补齐会话 owner 校验，避免跨管理员读取草案。</span>
+                </div>
+              </div>
+              <div class="checklist">
+                <div class="checklist-item">
+                  <span class="checkmark">✓</span>
+                  <span>字段 schema、抽取要求、示例值、复核规则已由用户确认。</span>
+                </div>
+                <div class="checklist-item">
+                  <span class="checkmark">✓</span>
+                  <span>Prompt 预览和 cleaner 预览可回看；修改字段后标记为 stale，要求重新生成。</span>
+                </div>
+                <div class="checklist-item">
+                  <span class="checkmark">✓</span>
+                  <span>Excel 空模板已扫描填充槽位；缺少 field_key、重复 key 或缺少待识别样本时阻止发布。</span>
+                </div>
+                <div class="checklist-item">
+                  <span class="checkmark">✓</span>
+                  <span>发布写入模板配置，不立即处理历史文档；历史重跑作为后续单独动作。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel" style="grid-column: 2 / 3">
+        <div class="panel-head">
+          <div>
+            <h3>对话补丁体验</h3>
+            <p>对话不会直接改最终模板，只生成可审查补丁，用户点击接受后进入字段表。</p>
+          </div>
+          <span class="tag amber">模拟交互</span>
+        </div>
+        <div class="panel-body">
+          <div class="chat-box" id="chatBox">
+            <div class="chat-msg agent">
+              我已从样本文档生成 8 个字段草案。建议你重点确认数量、规格、验收结论三个字段的类型和抽取要求。
+            </div>
+            <div class="chat-msg">
+              需要增加“破损数量”，并且只在备注里出现异常时才填。
+            </div>
+            <div class="chat-msg agent">
+              我可以生成一个字段补丁：新增 damaged_quantity，类型 number，要求从异常备注或明细缺陷行提取。
+            </div>
+          </div>
+          <div class="chat-row">
+            <input
+              id="chatInput"
+              value="把签收人也加入字段，但需要人工复核"
+              aria-label="对话输入"
+            />
+            <button class="btn primary" id="chatBtn">生成补丁</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="plan-section" id="implementation-plan">
+        <div class="plan-head">
+          <h2>详细修改计划</h2>
+          <p>
+            计划目标是在现有 OpenAI Agents SDK 模板生成能力上，升级为“文档应用构建器”。核心变化是：解析上传的待识别图片/文档后先生成字段草案，用户在结构化页面确认字段，再生成 prompt、cleaner 和输出配置；固定 Excel 空模板通过
+            <code>{{field_key}}</code> 定义填充槽位。
+          </p>
+        </div>
+        <div class="plan-grid">
+          <article class="plan-card">
+            <h3>1. 产品入口与权限</h3>
+            <ul>
+              <li>继续放在现有 <code>/admin</code> 的 AI 生成模板区域，不新增公开页面。</li>
+              <li>入口改名为“文档应用构建器”，支持样本文档、固定 Excel 填报模板、对话创建、复制模板四种起点。</li>
+              <li>后端继续要求 <code>tenant_admin</code> / <code>super_admin</code>，并新增 session owner 校验。</li>
+              <li>验证：非管理员 403；管理员只能读取自己创建的草案 session。</li>
+            </ul>
+          </article>
+
+          <article class="plan-card">
+            <h3>2. 字段草案数据模型</h3>
+            <ul>
+              <li>新增或固化 <code>field_schema</code>：label、field_key、data_type、extraction_hint、sample_value、source、required、review_enforced、output_targets。</li>
+              <li>字段候选来源支持 <code>ai_detected</code>、<code>manual</code>、<code>cloned_template</code>；Excel 的 <code>excel_placeholder</code> 作为输出槽位来源记录。</li>
+              <li>草案状态支持 draft、needs_review、confirmed、excluded。</li>
+              <li>验证：field_key 唯一、合法命名、不能与系统字段冲突；confirmed 字段才允许发布。</li>
+            </ul>
+          </article>
+
+          <article class="plan-card">
+            <h3>3. API 合同调整</h3>
+            <ul>
+              <li>保留现有 <code>/api/sdk/sessions</code>，扩展为 builder session，不破坏已有流程。</li>
+              <li>新增或拆分：解析待识别图片/文档、扫描 Excel 填充槽位、更新字段草案、生成对话补丁、确认字段、生成 prompt、发布模板。</li>
+              <li>对话接口只返回 patch，不直接写最终模板；前端接受后再调用草案更新接口。</li>
+              <li>验证：每个接口有 Pydantic schema、权限测试、owner 测试、错误码测试。</li>
+            </ul>
+          </article>
+
+          <article class="plan-card">
+            <h3>4. OpenAI Agents SDK 流程</h3>
+            <ul>
+              <li>Doc Analyzer Agent：基于 OCR、表格、图片区域和已有模板，生成字段草案。</li>
+              <li>Field Patch Agent：把用户对话转成字段 patch，并给出理由和风险提示。</li>
+              <li>Prompt Agent：只基于 confirmed 字段生成 extraction_prompt_template。</li>
+              <li>Code Agent：基于字段类型、校验规则和输出目标生成 cleaner 预览。</li>
+            </ul>
+          </article>
+
+          <article class="plan-card">
+            <h3>5. 空 Excel 模板填充输出</h3>
+            <ul>
+              <li>上传空 xlsx 模板后扫描所有文本单元格里的 <code>{{field_key}}</code>，得到需要填充的目标字段。</li>
+              <li>同时上传待识别图片/文档，OpenAI Agents SDK 从图片/文档解析这些字段的具体值。</li>
+              <li>输出时复制原 workbook，并把抽取结果写入对应占位符；保留样式、合并单元格、图片和公式。</li>
+              <li>验证：用提供的复杂 Excel 空模板和待识别图片做回归，检查字段值被写入且样式未丢失。</li>
+            </ul>
+          </article>
+
+          <article class="plan-card">
+            <h3>6. 前端组件拆分</h3>
+            <ul>
+              <li><code>DocumentAppBuilder</code> 作为容器，替代继续膨胀的单体 wizard。</li>
+              <li><code>BuildModePicker</code>、<code>DocumentParsePanel</code>、<code>FieldDraftTable</code>、<code>FieldInspector</code>、<code>PatchReviewPanel</code>、<code>PublishReview</code> 分开实现。</li>
+              <li>字段改动后标记 prompt/code stale，要求重新生成预览后才能发布。</li>
+              <li>验证：前端 build、lint，关键状态用组件测试或至少手动路径验证。</li>
+            </ul>
+          </article>
+
+          <article class="plan-card">
+            <h3>7. 数据库与存储</h3>
+            <ul>
+              <li><code>document_templates</code> 增加 output_mode、field_schema、excel_template_file_id、builder_metadata 等配置。</li>
+              <li>空模板 xlsx 放对象存储或现有上传目录，数据库只保存引用和 hash。</li>
+              <li>生成的 Excel 结果写入新的输出记录，供用户下载和审计。</li>
+              <li>验证：迁移可回放；旧模板默认 output_mode 为 bitable，不影响现有流程。</li>
+            </ul>
+          </article>
+
+          <article class="plan-card">
+            <h3>8. 分阶段落地</h3>
+            <ol>
+              <li>MVP：字段草案编辑页 + confirmed 字段生成 prompt/code，保持现有多维表格输出。</li>
+              <li>第二阶段：空 Excel 模板上传、占位符扫描、图片解析结果填充和下载。</li>
+              <li>第三阶段：对话补丁、模板克隆差异对比、更多文档类型向导。</li>
+              <li>每阶段单独验证，避免一次性改动 LLM pipeline、存储和输出链路。</li>
+            </ol>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const demoState = {
+        step: "start",
+        mode: "sample",
+        selectedId: "order_no",
+        fields: [
+          {
+            id: "order_no",
+            label: "订单号",
+            key: "order_no",
+            type: "string",
+            hint: "从页眉或基础信息区提取唯一订单编号，保持原始大小写和数字，不要拆分。",
+            source: "AI 识别",
+            status: "confirmed",
+            required: true,
+            review: false,
+            bitable: true,
+            excel: true,
+            template: ["已有模板无冲突", "Excel 填充槽位匹配"],
+          },
+          {
+            id: "customer_name",
+            label: "客户名称",
+            key: "customer_name",
+            type: "string",
+            hint: "提取客户或收货单位名称；若存在多个联系人，只取机构名称。",
+            source: "AI 识别",
+            status: "needs_review",
+            required: true,
+            review: true,
+            bitable: true,
+            excel: true,
+            template: ["字段名需确认", "多维表格新增列"],
+          },
+          {
+            id: "product_name",
+            label: "产品名称",
+            key: "product_name",
+            type: "string",
+            hint: "从明细行或品名栏提取主产品名称，不合并规格型号。",
+            source: "AI 识别",
+            status: "confirmed",
+            required: true,
+            review: false,
+            bitable: true,
+            excel: true,
+            template: ["沿用产品字段"],
+          },
+          {
+            id: "specification",
+            label: "规格型号",
+            key: "specification",
+            type: "string",
+            hint: "提取尺寸、规格、型号等文本，保留单位；如果跨多行，需要合并为一个字符串。",
+            source: "Excel 填充槽位",
+            status: "needs_review",
+            required: false,
+            review: true,
+            bitable: true,
+            excel: true,
+            template: ["{{specification}}", "需确认单位规则"],
+          },
+          {
+            id: "quantity",
+            label: "数量",
+            key: "quantity",
+            type: "number",
+            hint: "提取总数量，转换为数字；如果明细有多个数量，优先取合计行。",
+            source: "AI 识别",
+            status: "confirmed",
+            required: true,
+            review: false,
+            bitable: true,
+            excel: true,
+            template: ["{{quantity}}", "number 类型"],
+          },
+          {
+            id: "inspection_result",
+            label: "验收结论",
+            key: "inspection_result",
+            type: "enum",
+            hint: "只允许输出 pass、fail、partial、unknown。根据结论、备注、签收状态综合判断。",
+            source: "AI 识别",
+            status: "needs_review",
+            required: true,
+            review: true,
+            bitable: true,
+            excel: false,
+            template: ["枚举值需确认", "人工复核"],
+          },
+          {
+            id: "delivery_date",
+            label: "交付日期",
+            key: "delivery_date",
+            type: "date",
+            hint: "提取交付、签收或验收日期，统一为 YYYY-MM-DD。",
+            source: "AI 识别",
+            status: "confirmed",
+            required: false,
+            review: false,
+            bitable: true,
+            excel: true,
+            template: ["{{delivery_date}}"],
+          },
+          {
+            id: "remarks",
+            label: "备注",
+            key: "remarks",
+            type: "string",
+            hint: "提取异常说明、补充说明、签收备注；没有备注时返回 null。",
+            source: "手动补充",
+            status: "draft",
+            required: false,
+            review: true,
+            bitable: true,
+            excel: false,
+            template: ["新建字段"],
+          },
+        ],
+      };
+
+      const stepMeta = {
+        start: {
+          title: "选择构建方式",
+          description:
+            "参考 LlamaParse Agents 的构建入口，但按 NeoFlow 的业务分成“样本文档、固定 Excel 填报、对话创建、复制模板”四种起点。",
+        },
+        parse: {
+          title: "上传并解析文档",
+          description:
+            "系统先解析待识别图片/文档，并扫描空 Excel 模板的填充槽位，但不直接写模板。",
+        },
+        draft: {
+          title: "编辑 AI 字段草案",
+          description:
+            "核心体验：按字段修改名称、field_key、类型、抽取要求、复核规则和输出目标，然后确认。",
+        },
+        prompt: {
+          title: "生成 Prompt 与输出配置",
+          description:
+            "字段确认后生成 prompt / cleaner 预览；固定 Excel 空模板通过 {{field_key}} 接收解析结果。",
+        },
+        publish: {
+          title: "发布前确认",
+          description:
+            "最终写入模板配置前，管理员确认字段 schema、输出模式、复核规则和 Excel 模板引用。",
+        },
+      };
+
+      const modeLabels = {
+        sample: "样本文档开始",
+        excel: "固定 Excel 填报",
+        chat: "通过对话创建",
+        clone: "复制已有模板",
+      };
+
+      const els = {
+        navButtons: Array.from(document.querySelectorAll("[data-step]")),
+        screens: Array.from(document.querySelectorAll("[data-screen]")),
+        modeCards: Array.from(document.querySelectorAll("[data-mode]")),
+        screenTitle: document.getElementById("screenTitle"),
+        screenDescription: document.getElementById("screenDescription"),
+        modeTag: document.getElementById("modeTag"),
+        uploadTitle: document.getElementById("uploadTitle"),
+        uploadCopy: document.getElementById("uploadCopy"),
+        excelCopy: document.getElementById("excelCopy"),
+        excelStatus: document.getElementById("excelStatus"),
+        excelProgress: document.getElementById("excelProgress"),
+        fieldTable: document.getElementById("fieldTable"),
+        fieldCountTag: document.getElementById("fieldCountTag"),
+        fieldLabel: document.getElementById("fieldLabel"),
+        fieldKey: document.getElementById("fieldKey"),
+        fieldType: document.getElementById("fieldType"),
+        fieldHint: document.getElementById("fieldHint"),
+        fieldRequired: document.getElementById("fieldRequired"),
+        fieldReview: document.getElementById("fieldReview"),
+        targetBitable: document.getElementById("targetBitable"),
+        targetExcel: document.getElementById("targetExcel"),
+        templateConfigTags: document.getElementById("templateConfigTags"),
+        placeholderGrid: document.getElementById("placeholderGrid"),
+        toast: document.getElementById("toast"),
+        promptPreview: document.getElementById("promptPreview"),
+        publishFields: document.getElementById("publishFields"),
+        publishOutputs: document.getElementById("publishOutputs"),
+        chatBox: document.getElementById("chatBox"),
+        chatInput: document.getElementById("chatInput"),
+      };
+
+      function currentField() {
+        return demoState.fields.find((field) => field.id === demoState.selectedId);
+      }
+
+      function setStep(step) {
+        demoState.step = step;
+        els.navButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.step === step);
+        });
+        els.screens.forEach((screen) => {
+          screen.classList.toggle("active", screen.dataset.screen === step);
+        });
+        els.screenTitle.textContent = stepMeta[step].title;
+        els.screenDescription.textContent = stepMeta[step].description;
+      }
+
+      function setMode(mode) {
+        demoState.mode = mode;
+        els.modeCards.forEach((card) => {
+          card.classList.toggle("active", card.dataset.mode === mode);
+        });
+        els.modeTag.textContent = modeLabels[mode];
+
+        if (mode === "excel") {
+          els.uploadTitle.textContent = "上传待识别图片/文档，可选空 Excel 输出模板";
+          els.uploadCopy.textContent =
+            "待识别图片/文档负责提供字段值；空 xlsx 只负责定义 {{field_key}} 填充槽位，系统解析后再把结果写回模板。";
+          els.excelCopy.textContent =
+            "已从空 Excel 输出模板扫描 5 个填充槽位：{{order_no}}、{{specification}}、{{quantity}}、{{delivery_date}}、{{customer_name}}。";
+          els.excelStatus.textContent = "已扫描";
+          els.excelStatus.className = "tag green";
+          els.excelProgress.style.width = "100%";
+          showToast("已切换为固定 Excel 填报模式：占位符是输出槽位，字段值来自待识别图片/文档。");
+          return;
+        }
+
+        els.uploadTitle.textContent = mode === "clone" ? "选择已有模板与样本文档" : "上传样本文档";
+        els.uploadCopy.textContent =
+          mode === "chat"
+            ? "上传文档后先生成字段草案，再通过对话提出修改；对话结果以补丁形式等待确认。"
+            : "支持 PDF、图片、Excel、Word。上传后先解析正文、表格和视觉区域，再生成字段草案。";
+        els.excelCopy.textContent =
+          "未上传固定模板时跳过；上传空 xlsx 后扫描 {{field_key}}，作为图片/文档解析结果的填充目标。";
+        els.excelStatus.textContent = "可选";
+        els.excelStatus.className = "tag";
+        els.excelProgress.style.width = "54%";
+      }
+
+      function renderFields() {
+        els.fieldTable.innerHTML = demoState.fields
+          .map((field) => {
+            const statusClass =
+              field.status === "confirmed"
+                ? "green"
+                : field.status === "needs_review"
+                  ? "amber"
+                  : "blue";
+            return `
+              <tr data-field-id="${field.id}" class="${field.id === demoState.selectedId ? "selected" : ""}">
+                <td><strong>${escapeHtml(field.label)}</strong></td>
+                <td><span class="field-key">${escapeHtml(field.key)}</span></td>
+                <td>${escapeHtml(field.type)}</td>
+                <td><span class="hint">${escapeHtml(field.hint)}</span></td>
+                <td>${escapeHtml(field.source)}</td>
+                <td><span class="tag ${statusClass}">${statusText(field.status)}</span></td>
+              </tr>`;
+          })
+          .join("");
+        els.fieldCountTag.textContent = `${demoState.fields.length} 个字段`;
+        els.publishFields.textContent = String(
+          demoState.fields.filter((field) => field.status === "confirmed").length,
+        );
+        els.fieldTable.querySelectorAll("tr[data-field-id]").forEach((row) => {
+          row.addEventListener("click", () => {
+            demoState.selectedId = row.dataset.fieldId;
+            renderFields();
+            renderInspector();
+          });
+        });
+      }
+
+      function renderInspector() {
+        const field = currentField();
+        if (!field) return;
+        els.fieldLabel.value = field.label;
+        els.fieldKey.value = field.key;
+        els.fieldType.value = field.type;
+        els.fieldHint.value = field.hint;
+        els.fieldRequired.checked = field.required;
+        els.fieldReview.checked = field.review;
+        els.targetBitable.checked = field.bitable;
+        els.targetExcel.checked = field.excel;
+        els.templateConfigTags.innerHTML = field.template
+          .map((item) => `<span class="tag">${escapeHtml(item)}</span>`)
+          .join("");
+      }
+
+      function renderPlaceholders() {
+        const excelFields = demoState.fields.filter((field) => field.excel);
+        els.placeholderGrid.innerHTML = excelFields
+          .map(
+            (field) => `
+              <div class="placeholder">
+                <code>{{${escapeHtml(field.key)}}}</code>
+                <span>${escapeHtml(field.label)} · ${escapeHtml(field.type)}</span>
+              </div>`,
+          )
+          .join("");
+        els.publishOutputs.textContent = demoState.fields.some((field) => field.excel)
+          ? "2"
+          : "1";
+      }
+
+      function updateSelectedField(partial) {
+        const field = currentField();
+        if (!field) return;
+        Object.assign(field, partial);
+        renderFields();
+        renderPlaceholders();
+      }
+
+      function statusText(status) {
+        if (status === "confirmed") return "已确认";
+        if (status === "needs_review") return "需确认";
+        return "草案";
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function showToast(message) {
+        els.toast.textContent = message;
+        els.toast.classList.add("visible");
+        window.clearTimeout(showToast.timer);
+        showToast.timer = window.setTimeout(() => {
+          els.toast.classList.remove("visible");
+        }, 2600);
+      }
+
+      function addFieldFromPatch() {
+        if (demoState.fields.some((field) => field.id === "damaged_quantity")) {
+          showToast("补丁已经存在：damaged_quantity。");
+          return;
+        }
+        demoState.fields.push({
+          id: "damaged_quantity",
+          label: "破损数量",
+          key: "damaged_quantity",
+          type: "number",
+          hint: "仅当备注、异常说明或缺陷明细中出现破损信息时提取数量；没有异常时返回 null。",
+          source: "对话补丁",
+          status: "needs_review",
+          required: false,
+          review: true,
+          bitable: true,
+          excel: true,
+          template: ["对话新增", "{{damaged_quantity}} 待加入 Excel"],
+        });
+        demoState.selectedId = "damaged_quantity";
+        renderFields();
+        renderInspector();
+        renderPlaceholders();
+        setStep("draft");
+        showToast("已生成字段补丁，并放入字段草案等待确认。");
+      }
+
+      function addManualField() {
+        const id = `manual_field_${demoState.fields.length + 1}`;
+        demoState.fields.push({
+          id,
+          label: "新字段",
+          key: id,
+          type: "string",
+          hint: "请填写该字段的抽取要求、来源和复核规则。",
+          source: "手动补充",
+          status: "draft",
+          required: false,
+          review: true,
+          bitable: true,
+          excel: false,
+          template: ["新建字段"],
+        });
+        demoState.selectedId = id;
+        renderFields();
+        renderInspector();
+        renderPlaceholders();
+        setStep("draft");
+        showToast("已新增一个手动字段。");
+      }
+
+      function generatePromptPreview() {
+        const schema = demoState.fields
+          .filter((field) => field.status !== "draft")
+          .map((field) => ({
+            field_key: field.key,
+            label: field.label,
+            type: field.type,
+            required: field.required,
+            review_enforced: field.review,
+            output_targets: [
+              field.bitable ? "bitable" : null,
+              field.excel ? "excel_template" : null,
+            ].filter(Boolean),
+            extraction_hint: field.hint,
+          }));
+        els.promptPreview.textContent = `extraction_prompt_template:
+请从上传文档中抽取以下字段，只输出 JSON。
+
+field_schema:
+${JSON.stringify(schema, null, 2)}
+
+质量规则:
+- 找不到字段时返回 null，不要猜测。
+- 数字字段只输出 number，不带单位。
+- 日期统一为 YYYY-MM-DD。
+- review_enforced=true 时保留 evidence_snippet 供人工复核。
+- Excel 输出把图片/文档抽取结果按 field_key 写入 {{field_key}} 占位符。`;
+        showToast("Prompt 预览已根据当前 confirmed / needs_review 字段重新生成。");
+      }
+
+      function bindEvents() {
+        els.navButtons.forEach((button) => {
+          button.addEventListener("click", () => setStep(button.dataset.step));
+        });
+        els.modeCards.forEach((card) => {
+          card.addEventListener("click", () => setMode(card.dataset.mode));
+        });
+        document.getElementById("nextBtn").addEventListener("click", () => {
+          const order = ["start", "parse", "draft", "prompt", "publish"];
+          const index = order.indexOf(demoState.step);
+          setStep(order[Math.min(index + 1, order.length - 1)]);
+        });
+        document.getElementById("applyPatchBtn").addEventListener("click", addFieldFromPatch);
+        document.getElementById("addFieldBtn").addEventListener("click", addManualField);
+        document.getElementById("acceptAllBtn").addEventListener("click", () => {
+          demoState.fields.forEach((field) => {
+            if (field.status !== "draft") field.status = "confirmed";
+          });
+          renderFields();
+          showToast("已模拟接受所有非草案字段。");
+        });
+        document.getElementById("confirmFieldBtn").addEventListener("click", () => {
+          updateSelectedField({ status: "confirmed" });
+          showToast(`字段 ${currentField().key} 已确认。`);
+        });
+        document
+          .getElementById("generatePromptBtn")
+          .addEventListener("click", generatePromptPreview);
+        document.getElementById("publishBtn").addEventListener("click", () => {
+          showToast("模拟发布完成：模板配置、字段 schema 和输出模式会在真实实现中写入数据库。");
+        });
+        document.getElementById("chatBtn").addEventListener("click", () => {
+          const text = els.chatInput.value.trim();
+          if (!text) return;
+          els.chatBox.insertAdjacentHTML(
+            "beforeend",
+            `<div class="chat-msg">${escapeHtml(text)}</div><div class="chat-msg agent">已生成可审查补丁：新增 signer_name，类型 string，review_enforced=true。点击“模拟对话补丁”可把示例补丁写入字段草案。</div>`,
+          );
+          els.chatBox.scrollTop = els.chatBox.scrollHeight;
+          showToast("对话结果保持为补丁建议，仍需用户确认后才进入字段草案。");
+        });
+
+        [
+          ["fieldLabel", "label"],
+          ["fieldKey", "key"],
+          ["fieldType", "type"],
+          ["fieldHint", "hint"],
+        ].forEach(([elementId, key]) => {
+          document.getElementById(elementId).addEventListener("input", (event) => {
+            updateSelectedField({ [key]: event.target.value });
+            renderInspector();
+          });
+        });
+        [
+          ["fieldRequired", "required"],
+          ["fieldReview", "review"],
+          ["targetBitable", "bitable"],
+          ["targetExcel", "excel"],
+        ].forEach(([elementId, key]) => {
+          document.getElementById(elementId).addEventListener("change", (event) => {
+            updateSelectedField({ [key]: event.target.checked });
+            renderInspector();
+          });
+        });
+      }
+
+      bindEvents();
+      renderFields();
+      renderInspector();
+      renderPlaceholders();
+    </script>
+  </body>
+</html>

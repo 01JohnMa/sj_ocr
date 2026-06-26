@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NeoFlow OpenAI Agents SDK 改动 Review</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #090d12;
+        --panel: #10161d;
+        --panel-2: #151d26;
+        --panel-3: #1b2631;
+        --line: #2a3948;
+        --text: #edf3f8;
+        --muted: #94a6b8;
+        --soft: #c8d4df;
+        --blue: #4aa8ff;
+        --green: #51d38c;
+        --amber: #f1b84b;
+        --red: #ff6b6b;
+        --code: #0d1319;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(74, 168, 255, 0.16), transparent 34rem),
+          linear-gradient(180deg, #0b1016 0%, var(--bg) 42%);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        letter-spacing: 0;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      main {
+        width: min(1180px, calc(100vw - 36px));
+        margin: 0 auto;
+        padding: 36px 0 56px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+        gap: 24px;
+        align-items: stretch;
+        margin-bottom: 26px;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(34px, 5vw, 56px);
+        line-height: 1.04;
+        letter-spacing: 0;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .lead {
+        max-width: 760px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.72;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(16, 22, 29, 0.9);
+      }
+
+      .status-board {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        padding: 16px;
+      }
+
+      .metric {
+        min-height: 106px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel-2);
+      }
+
+      .metric strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 28px;
+        line-height: 1;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      section {
+        margin-top: 22px;
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 21px;
+      }
+
+      h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .card p,
+      .card li {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.68;
+      }
+
+      ul {
+        margin: 10px 0 0;
+        padding-left: 18px;
+      }
+
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 0 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--soft);
+        background: var(--panel-3);
+        font-size: 12px;
+      }
+
+      .tag.good {
+        color: var(--green);
+        border-color: rgba(81, 211, 140, 0.32);
+        background: rgba(81, 211, 140, 0.08);
+      }
+
+      .tag.warn {
+        color: var(--amber);
+        border-color: rgba(241, 184, 75, 0.34);
+        background: rgba(241, 184, 75, 0.08);
+      }
+
+      .tag.bad {
+        color: var(--red);
+        border-color: rgba(255, 107, 107, 0.34);
+        background: rgba(255, 107, 107, 0.08);
+      }
+
+      .timeline {
+        display: grid;
+        gap: 10px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .num {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border-radius: 8px;
+        background: rgba(74, 168, 255, 0.12);
+        color: var(--blue);
+        font-weight: 800;
+      }
+
+      .step p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.62;
+      }
+
+      .file-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .file-row {
+        display: grid;
+        grid-template-columns: 118px minmax(0, 1fr);
+        gap: 12px;
+        align-items: baseline;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .status {
+        display: inline-flex;
+        justify-content: center;
+        width: fit-content;
+        min-width: 78px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .status.new {
+        color: var(--green);
+        background: rgba(81, 211, 140, 0.1);
+      }
+
+      .status.modified {
+        color: var(--blue);
+        background: rgba(74, 168, 255, 0.1);
+      }
+
+      code,
+      pre {
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+
+      code {
+        color: #d7e6f2;
+        font-size: 12px;
+      }
+
+      pre {
+        overflow: auto;
+        margin: 12px 0 0;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--code);
+        color: #dbe8f4;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .callout {
+        padding: 16px;
+        border: 1px solid rgba(241, 184, 75, 0.34);
+        border-radius: 8px;
+        background: rgba(241, 184, 75, 0.08);
+      }
+
+      .callout p {
+        margin: 0;
+        color: #f7d694;
+        font-size: 14px;
+        line-height: 1.68;
+      }
+
+      .footer {
+        margin-top: 26px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      @media (max-width: 860px) {
+        main {
+          width: min(100vw - 24px, 1180px);
+          padding-top: 24px;
+        }
+
+        .hero,
+        .grid-2,
+        .grid-3 {
+          grid-template-columns: 1fr;
+        }
+
+        .status-board {
+          grid-template-columns: 1fr;
+        }
+
+        .file-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">NeoFlow / feature/openai-agents-sdk / change review</p>
+          <h1>OpenAI Agents SDK 集成改动审阅页</h1>
+          <p class="lead">
+            这页把当前工作区里的 AI 模板向导改动按执行路径整理出来：
+            后端会话与 Agent 编排、Supabase 写入、前端管理页入口、数据库迁移、
+            测试与验证结果。它是静态 HTML，只用于 review。
+          </p>
+          <div class="tag-row">
+            <span class="tag good">当前分支 feature/openai-agents-sdk</span>
+            <span class="tag">基线 production / 174c12b</span>
+            <span class="tag warn">未提交改动</span>
+            <span class="tag">不包含 push / commit</span>
+          </div>
+        </div>
+
+        <aside class="panel status-board" aria-label="改动统计">
+          <div class="metric">
+            <strong>6</strong>
+            <span>已跟踪文件被修改，集中在路由注册、配置、模板服务和前端管理页。</span>
+          </div>
+          <div class="metric">
+            <strong>18+</strong>
+            <span>新增未跟踪文件，包含 SDK 包、API 路由、迁移、测试、前端向导和文档。</span>
+          </div>
+          <div class="metric">
+            <strong>7</strong>
+            <span>新增管理员 SDK API endpoint，覆盖上传、分析、确认、prompt、code preview、commit、删除。</span>
+          </div>
+          <div class="metric">
+            <strong>4</strong>
+            <span>已运行通过的验证类型：Python compile、session smoke、前端 build、targeted eslint。</span>
+          </div>
+        </aside>
+      </header>
+
+      <section>
+        <h2>Review 重点</h2>
+        <div class="grid-3">
+          <article class="card">
+            <h3>1. 功能边界</h3>
+            <p>
+              本版实现“管理员上传样本文档 - OCR - AI 分析 - 确认模板 - 生成 prompt -
+              写入 Supabase”的第一版闭环。清洗代码只做 preview，不自动 import 或执行。
+            </p>
+          </article>
+          <article class="card">
+            <h3>2. 命名冲突处理</h3>
+            <p>
+              仓库已有本地 <code>agents/</code> 业务包，官方 OpenAI Agents SDK 也使用
+              <code>agents</code> 导入名。新实现通过 distribution 路径隔离加载 SDK，
+              避免覆盖现有 <code>agents.workflow</code>。
+            </p>
+          </article>
+          <article class="card">
+            <h3>3. 数据库合同</h3>
+            <p>
+              新迁移给 <code>document_templates</code> 增加
+              <code>extraction_prompt_template</code> 和 <code>cleaner_module</code>。
+              模板服务读取 prompt 字段时优先使用自定义模板。
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>端到端流程</h2>
+        <div class="timeline">
+          <div class="step">
+            <div class="num">1</div>
+            <div>
+              <h3>上传样本文档并 OCR</h3>
+              <p>
+                前端 <code>AiTemplateWizard</code> 调用 <code>POST /api/sdk/sessions</code>。
+                后端保存文件到 <code>uploads/sdk_sessions</code>，复用
+                <code>ocr_service.process_document()</code> 得到 OCR 文本和置信度。
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">2</div>
+            <div>
+              <h3>Agent 分析文档</h3>
+              <p>
+                <code>doc_analyzer_agent</code> 输入 OCR 文本、文件名和已有部门列表，
+                输出推荐文档类型、模板 code、部门、字段和 few-shot 示例。
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">3</div>
+            <div>
+              <h3>管理员确认模板配置</h3>
+              <p>
+                前端允许编辑模板名称、code、描述、提取模式、逐页提取开关和字段提示，
+                然后调用 <code>/confirm-template</code> 保存到内存 session。
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">4</div>
+            <div>
+              <h3>生成 Prompt 并提交</h3>
+              <p>
+                <code>prompt_agent</code> 生成带 <code>{ocr_text}</code> 占位符的提取 prompt。
+                commit 阶段创建模板、字段和 few-shot 示例，字段写入继续复用现有
+                <code>template_service.create_field()</code> 的 ADD COLUMN 行为。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>后端改动</h2>
+        <div class="grid-2">
+          <article class="card">
+            <h3>新增 SDK 包</h3>
+            <ul>
+              <li><code>sdk/models.py</code>：Session、分析结果、确认请求、commit 结果模型。</li>
+              <li><code>sdk/session.py</code>：带 TTL 的内存 session store。</li>
+              <li><code>sdk/openai_agents_runtime.py</code>：隔离加载 OpenAI Agents SDK。</li>
+              <li><code>sdk/agents/*</code>：文档分析、prompt、code preview 和 orchestrator。</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>新增 API 路由</h3>
+            <ul>
+              <li><code>api/routes/sdk.py</code>：管理员专用 SDK API。</li>
+              <li><code>api/main.py</code>：注册 <code>sdk_router</code> 到 <code>/api/sdk</code>。</li>
+              <li>权限沿用 <code>CurrentUser.is_tenant_admin()</code>，普通用户返回 403。</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>模板服务</h3>
+            <ul>
+              <li><code>create_template()</code>：供 commit 阶段创建模板。</li>
+              <li><code>build_extraction_prompt()</code>：优先使用 <code>extraction_prompt_template</code>。</li>
+              <li><code>get_admin_templates()</code> 回传新字段，便于前端后续展示。</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>依赖与配置</h3>
+            <ul>
+              <li><code>requirements.txt</code> 新增 <code>openai-agents&gt;=0.7.0</code>。</li>
+              <li><code>config/settings.py</code> 新增 <code>SDK_MODEL_ID</code>、<code>SDK_API_KEY</code>、<code>SDK_BASE_URL</code>、<code>SDK_TEMPERATURE</code>。</li>
+              <li>为空时 fallback 到现有 LLM 配置。</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>前端改动</h2>
+        <div class="grid-2">
+          <article class="card">
+            <h3>管理页入口</h3>
+            <p>
+              <code>AdminConfig.tsx</code> 新增 <code>AI 生成模板</code> tab 和按钮。
+              该 tab 只要求先选择部门，不要求先选已有模板。commit 成功后刷新模板列表。
+            </p>
+          </article>
+          <article class="card">
+            <h3>向导组件</h3>
+            <p>
+              <code>AiTemplateWizard.tsx</code> 使用四步视觉流程展示 OCR、AI 分析、确认配置、
+              写入 Supabase。字段可编辑，Prompt 可预览和修改。
+            </p>
+          </article>
+          <article class="card">
+            <h3>类型合同</h3>
+            <p>
+              <code>web/src/types/index.ts</code> 增加 SDK session、analysis、field、example、
+              commit result 等 TS 类型；同时把两个空 interface 改为 type alias，避免 lint 噪音。
+            </p>
+          </article>
+          <article class="card">
+            <h3>API Service</h3>
+            <p>
+              <code>web/src/services/sdk.ts</code> 封装上传、分析、确认、生成 prompt、
+              生成 code preview 和 commit 调用，复用现有 Axios 鉴权拦截器。
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>文件清单</h2>
+        <div class="file-list">
+          <div class="file-row"><span class="status modified">modified</span><code>api/main.py</code></div>
+          <div class="file-row"><span class="status modified">modified</span><code>config/settings.py</code></div>
+          <div class="file-row"><span class="status modified">modified</span><code>requirements.txt</code></div>
+          <div class="file-row"><span class="status modified">modified</span><code>services/template_service.py</code></div>
+          <div class="file-row"><span class="status modified">modified</span><code>web/src/pages/AdminConfig.tsx</code></div>
+          <div class="file-row"><span class="status modified">modified</span><code>web/src/types/index.ts</code></div>
+          <div class="file-row"><span class="status new">new</span><code>api/routes/sdk.py</code></div>
+          <div class="file-row"><span class="status new">new</span><code>sdk/</code></div>
+          <div class="file-row"><span class="status new">new</span><code>supabase/migrations/015_add_sdk_prompt_cleaner.sql</code></div>
+          <div class="file-row"><span class="status new">new</span><code>tests/test_sdk/</code></div>
+          <div class="file-row"><span class="status new">new</span><code>web/src/components/admin/AiTemplateWizard.tsx</code></div>
+          <div class="file-row"><span class="status new">new</span><code>web/src/services/sdk.ts</code></div>
+          <div class="file-row"><span class="status new">new</span><code>docs/foamy-giggling-valley.md</code></div>
+          <div class="file-row"><span class="status new">new</span><code>docs/openai-agents-sdk-change-review.html</code></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>验证结果</h2>
+        <div class="grid-2">
+          <article class="card">
+            <h3>已通过</h3>
+            <ul>
+              <li><code>python3 -m compileall sdk api/routes/sdk.py</code></li>
+              <li>后端 session store 轻量运行验证</li>
+              <li><code>npm run build</code></li>
+              <li><code>npx eslint src/components/admin/AiTemplateWizard.tsx src/pages/AdminConfig.tsx src/services/sdk.ts src/types/index.ts</code></li>
+              <li><code>git --no-pager diff --check</code></li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>未通过 / 环境阻塞</h3>
+            <ul>
+              <li><code>PYTHONPATH=. pytest tests/test_sdk -q</code> 失败：当前 Python 环境缺 <code>loguru</code>。</li>
+              <li><code>npm run lint</code> 全量失败：剩余 5 个既有 lint 错误在非本次新增文件。</li>
+              <li><code>npm install</code> 后 npm audit 报告 17 个依赖问题，未在本次范围内处理。</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>Review 时建议重点看</h2>
+        <div class="callout">
+          <p>
+            1. 是否接受 <code>sdk/openai_agents_runtime.py</code> 这种隔离加载官方 SDK 的方式；
+            2. 是否接受 session 先用内存 TTL，而不是数据库表；
+            3. commit 阶段是否应立即创建结果表列；
+            4. 是否同意 code agent 只做 preview，不进入运行时执行；
+            5. 生产环境是否要显式配置 <code>SDK_* </code>，还是继续 fallback 到现有 <code>LLM_* </code>。
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2>关键路径速查</h2>
+        <pre>AdminConfig.tsx
+  -> AiTemplateWizard.tsx
+    -> web/src/services/sdk.ts
+      -> /api/sdk/sessions
+      -> /api/sdk/sessions/{id}/analyze
+      -> /api/sdk/sessions/{id}/confirm-template
+      -> /api/sdk/sessions/{id}/prompt
+      -> /api/sdk/sessions/{id}/commit
+
+api/routes/sdk.py
+  -> ocr_service.process_document()
+  -> sdk.agents.orchestrator
+  -> tenant_service / template_service
+  -> document_templates + template_fields + template_examples</pre>
+      </section>
+
+      <p class="footer">
+        Generated for local review from the current working tree. This page does not execute project code,
+        does not call external APIs, and does not include secrets.
+      </p>
+    </main>
+  </body>
+</html>

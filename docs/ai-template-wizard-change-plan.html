@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NeoFlow AI 模板向导修改计划</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0f14;
+        --panel: #111820;
+        --panel-2: #151f29;
+        --line: #243240;
+        --text: #edf3f8;
+        --muted: #8fa1b3;
+        --blue: #46a6ff;
+        --green: #4bd18b;
+        --amber: #f3bc4b;
+        --red: #ff6b6b;
+        --radius: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        letter-spacing: 0;
+      }
+
+      main {
+        width: min(1180px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 40px 0 56px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
+        gap: 28px;
+        align-items: stretch;
+        padding-bottom: 28px;
+      }
+
+      .hero-copy {
+        padding: 28px 0;
+      }
+
+      .eyebrow {
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+        margin: 0 0 14px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(34px, 5vw, 58px);
+        line-height: 1.02;
+        font-weight: 760;
+      }
+
+      .lead {
+        max-width: 760px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.75;
+      }
+
+      .status-board {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        align-content: start;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 18px;
+      }
+
+      .metric {
+        min-height: 118px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel-2);
+        padding: 16px;
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      section {
+        border-top: 1px solid var(--line);
+        padding: 30px 0;
+      }
+
+      h2 {
+        margin: 0 0 16px;
+        font-size: 22px;
+        line-height: 1.25;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 18px;
+      }
+
+      .card h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+
+      .card p,
+      .card li {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      .card ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .step {
+        position: relative;
+        min-height: 132px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 14px;
+      }
+
+      .step b {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(70, 166, 255, 0.14);
+        color: var(--blue);
+        font-size: 13px;
+        margin-bottom: 12px;
+      }
+
+      .step h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+
+      .step p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 820px;
+      }
+
+      th,
+      td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+        font-size: 14px;
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 700;
+        background: var(--panel-2);
+      }
+
+      td {
+        color: var(--text);
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      code {
+        color: #d7e7ff;
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 13px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 12px;
+        padding: 5px 9px;
+        margin: 0 6px 6px 0;
+      }
+
+      .tag.green {
+        border-color: rgba(75, 209, 139, 0.32);
+        color: var(--green);
+      }
+
+      .tag.amber {
+        border-color: rgba(243, 188, 75, 0.32);
+        color: var(--amber);
+      }
+
+      .checklist {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .check {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 14px 16px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .check strong {
+        color: var(--text);
+      }
+
+      .note {
+        border-left: 3px solid var(--amber);
+        background: rgba(243, 188, 75, 0.08);
+        color: #f5d799;
+        padding: 14px 16px;
+        border-radius: 0 var(--radius) var(--radius) 0;
+        line-height: 1.7;
+        font-size: 14px;
+      }
+
+      @media (max-width: 980px) {
+        .hero,
+        .grid,
+        .checklist {
+          grid-template-columns: 1fr;
+        }
+
+        .flow {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 620px) {
+        main {
+          width: min(100vw - 28px, 1180px);
+          padding-top: 26px;
+        }
+
+        .status-board,
+        .flow {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">NeoFlow / AI 模板生成向导</p>
+          <h1>修改计划展示页</h1>
+          <p class="lead">
+            目标是把“管理员上传样本文档 → OCR → AI 推荐模板 →
+            人工确认 → 生成 Prompt / 清洗代码 → 写入 Supabase”的流程，
+            落成一个可操作、可回滚、可验证的前后端闭环。
+          </p>
+        </div>
+
+        <aside class="status-board" aria-label="计划摘要">
+          <div class="metric">
+            <strong>6</strong>
+            <span>核心流程步骤，从上传 OCR 到提交模板。</span>
+          </div>
+          <div class="metric">
+            <strong>5+</strong>
+            <span>前端重点：字段、示例、Prompt、代码、提交状态。</span>
+          </div>
+          <div class="metric">
+            <strong>7</strong>
+            <span>后端接口覆盖 session、analyze、confirm、prompt、code、commit、delete。</span>
+          </div>
+          <div class="metric">
+            <strong>最小</strong>
+            <span>只改 AI 模板向导相关文件，不重构现有文档处理链路。</span>
+          </div>
+        </aside>
+      </header>
+
+      <section>
+        <h2>关键假设</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>展示对象</h3>
+            <p>面向管理员和开发者，用来确认这次 AI 模板向导要改哪些页面、接口和服务。</p>
+          </article>
+          <article class="card">
+            <h3>实现边界</h3>
+            <p>保留现有后台配置页结构，只新增 AI 生成模板入口和向导，不改已有上传、审核、飞书推送流程。</p>
+          </article>
+          <article class="card">
+            <h3>数据落点</h3>
+            <p>模板、字段、Few-shot 示例、Prompt 模板写入 Supabase；清洗代码先做预览和 session 保存。</p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>页面流程</h2>
+        <div class="flow">
+          <article class="step">
+            <b>1</b>
+            <h3>上传样本文档</h3>
+            <p>管理员上传 PDF / 图片，后端保存临时文件并执行 OCR。</p>
+          </article>
+          <article class="step">
+            <b>2</b>
+            <h3>OCR 摘要</h3>
+            <p>页面展示文件名、置信度、OCR 文本，作为后续 AI 分析输入。</p>
+          </article>
+          <article class="step">
+            <b>3</b>
+            <h3>AI 分析</h3>
+            <p>Agent 推荐文档类型、部门、字段、样例值和 Few-shot 示例。</p>
+          </article>
+          <article class="step">
+            <b>4</b>
+            <h3>人工确认</h3>
+            <p>管理员编辑模板名称、code、字段、审核规则、示例 JSON。</p>
+          </article>
+          <article class="step">
+            <b>5</b>
+            <h3>生成预览</h3>
+            <p>生成 Prompt 和清洗代码预览，允许提交前手工微调。</p>
+          </article>
+          <article class="step">
+            <b>6</b>
+            <h3>写入 Supabase</h3>
+            <p>创建模板、字段和示例，并刷新后台模板列表。</p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>文件修改计划</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>文件</th>
+                <th>修改内容</th>
+                <th>验证方式</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>api/routes/sdk.py</code></td>
+                <td>新增 AI 模板生成 API，包括上传 OCR、分析、确认、生成 Prompt、生成代码、提交和删除 session。</td>
+                <td><code>pytest tests/test_sdk/ -v</code></td>
+              </tr>
+              <tr>
+                <td><code>sdk/models.py</code></td>
+                <td>定义 session、分析结果、字段、示例、确认模板、提交结果等 Pydantic 模型。</td>
+                <td>API response model 校验通过。</td>
+              </tr>
+              <tr>
+                <td><code>sdk/agents/*</code></td>
+                <td>实现文档分析、Prompt 生成、清洗代码生成和 orchestrator 编排。</td>
+                <td>mock agent 输出，验证 API 流程。</td>
+              </tr>
+              <tr>
+                <td><code>services/template_service.py</code></td>
+                <td>支持模板自定义 <code>extraction_prompt_template</code>，并提供创建模板能力。</td>
+                <td>构建 prompt 时优先使用自定义模板。</td>
+              </tr>
+              <tr>
+                <td><code>web/src/components/admin/AiTemplateWizard.tsx</code></td>
+                <td>新增多步向导 UI：上传、分析、编辑字段、编辑示例、生成预览、提交。</td>
+                <td><code>npm run build</code>，浏览器检查页面。</td>
+              </tr>
+              <tr>
+                <td><code>web/src/services/sdk.ts</code></td>
+                <td>封装前端 SDK API 调用，提交时携带最终 Prompt / cleaner code。</td>
+                <td>TypeScript 编译通过。</td>
+              </tr>
+              <tr>
+                <td><code>web/src/pages/AdminConfig.tsx</code></td>
+                <td>新增“AI 生成模板”入口和 Tab，提交后刷新模板列表。</td>
+                <td>管理员配置页能打开并进入向导。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2>接口合同</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>Session 生命周期</h3>
+            <p>
+              <span class="tag green">POST /api/sdk/sessions</span>
+              <span class="tag">GET /api/sdk/sessions/{id}</span>
+              <span class="tag amber">DELETE /api/sdk/sessions/{id}</span>
+            </p>
+            <p>负责创建、读取和清理临时 AI 模板生成会话。</p>
+          </article>
+          <article class="card">
+            <h3>AI 生成链路</h3>
+            <p>
+              <span class="tag green">POST analyze</span>
+              <span class="tag green">POST prompt</span>
+              <span class="tag green">POST code</span>
+            </p>
+            <p>每一步独立调用，方便页面按需重试和展示预览。</p>
+          </article>
+          <article class="card">
+            <h3>提交合同</h3>
+            <p>
+              <span class="tag green">POST commit</span>
+              <span class="tag amber">prompt 可覆盖</span>
+              <span class="tag amber">cleaner_code 可选</span>
+            </p>
+            <p>提交前以页面最终编辑内容为准，避免丢失管理员手工修订。</p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>验证清单</h2>
+        <div class="checklist">
+          <div class="check"><strong>前端构建：</strong><code>npm run build</code> 必须通过。</div>
+          <div class="check"><strong>SDK 测试：</strong><code>pytest tests/test_sdk/ -v</code> 必须通过。</div>
+          <div class="check"><strong>页面检查：</strong>管理员配置页能看到“AI 生成模板”入口。</div>
+          <div class="check"><strong>数据检查：</strong>提交后模板列表刷新，字段和示例可在后台继续编辑。</div>
+          <div class="check"><strong>Prompt 检查：</strong>手动编辑后的 Prompt 能随 commit 写入模板。</div>
+          <div class="check"><strong>边界检查：</strong>非管理员访问 SDK 路由返回 403。</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>风险和不在范围</h2>
+        <p class="note">
+          本计划不包含生产级执行模型生成的清洗代码、不改现有结果表结构策略、不改认证授权模型、
+          不迁移历史数据、不重写已有文档处理 worker。清洗代码先作为预览和元数据保留，进入运行时前需要单独做安全审查。
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

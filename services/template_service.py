@@ -286,6 +286,10 @@ class TemplateService(SupabaseClientMixin):
         Returns:
             构建好的 Prompt
         """
+        custom_prompt = template.get("extraction_prompt_template")
+        if custom_prompt:
+            return custom_prompt.replace("{ocr_text}", ocr_text)
+
         # 1. 构建字段列表
         fields = template.get("template_fields", [])
         field_list = build_field_table(fields)
@@ -340,6 +344,27 @@ class TemplateService(SupabaseClientMixin):
         return [f.get("field_key") for f in fields if f.get("field_key")]
 
     # ============ 管理员 CRUD：字段操作 ============
+
+    async def create_template(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """创建文档模板基本信息。"""
+        allowed_keys = {
+            "tenant_id", "name", "code", "description", "required_doc_count",
+            "extraction_mode", "per_page_extraction", "extraction_prompt_template",
+            "cleaner_module", "output_mode", "excel_template_file_name",
+            "excel_template_path", "excel_template_placeholders",
+            "is_active", "sort_order",
+        }
+        payload = {k: v for k, v in data.items() if k in allowed_keys}
+        if "is_active" not in payload:
+            payload["is_active"] = True
+        try:
+            result = await self._run_sync(
+                lambda: self._get_client().table("document_templates").insert(payload).execute()
+            )
+            return result.data[0] if result.data else {}
+        except Exception as e:
+            logger.error(f"创建模板失败: {e}")
+            raise
 
     async def _get_result_table_for_template(self, template_id: str) -> Optional[str]:
         """
@@ -574,7 +599,11 @@ class TemplateService(SupabaseClientMixin):
             query = self._get_client().table("document_templates").select(
                 "id, tenant_id, name, code, description, "
                 "required_doc_count, sort_order, is_active, auto_approve, "
-                "push_attachment, extraction_mode, per_page_extraction, feishu_bitable_token, feishu_table_id"
+                "push_attachment, extraction_mode, per_page_extraction, "
+                "extraction_prompt_template, cleaner_module, "
+                "output_mode, excel_template_file_name, excel_template_path, "
+                "excel_template_placeholders, "
+                "feishu_bitable_token, feishu_table_id"
             )
             if tenant_id:
                 query = query.eq("tenant_id", tenant_id)
@@ -594,7 +623,12 @@ class TemplateService(SupabaseClientMixin):
             data: 包含 feishu_bitable_token, feishu_table_id, auto_approve, extraction_mode 的字典
         """
         try:
-            allowed_keys = {"feishu_bitable_token", "feishu_table_id", "auto_approve", "extraction_mode", "push_attachment", "per_page_extraction"}
+            allowed_keys = {
+                "feishu_bitable_token", "feishu_table_id", "auto_approve",
+                "extraction_mode", "push_attachment", "per_page_extraction",
+                "output_mode", "excel_template_file_name", "excel_template_path",
+                "excel_template_placeholders",
+            }
             payload = {k: v for k, v in data.items() if k in allowed_keys}
             if not payload:
                 return {}
@@ -607,6 +641,9 @@ class TemplateService(SupabaseClientMixin):
                 lambda: self._get_client().table("document_templates").select(
                     "id, tenant_id, name, code, description, required_doc_count, "
                     "sort_order, is_active, auto_approve, push_attachment, extraction_mode, per_page_extraction, "
+                    "extraction_prompt_template, cleaner_module, "
+                    "output_mode, excel_template_file_name, excel_template_path, "
+                    "excel_template_placeholders, "
                     "feishu_bitable_token, feishu_table_id"
                 ).eq("id", template_id).execute()
             )
