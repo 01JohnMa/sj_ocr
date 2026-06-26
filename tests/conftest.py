@@ -29,9 +29,6 @@ if not paddleocr_available:
     paddleocr_stub.PaddleOCR = PaddleOCR
     sys.modules["paddleocr"] = paddleocr_stub
 
-from api.dependencies.auth import CurrentUser, get_current_user
-from api.main import app
-
 
 USER_ID = "11111111-1111-4111-8111-111111111111"
 TENANT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
@@ -49,7 +46,18 @@ MOCK_DOCUMENT = {
 }
 
 
+@pytest.fixture(autouse=True)
+def stub_agents_workflow(monkeypatch):
+    """路由/worker 单测会 mock OCR workflow，不需要导入真实 LangChain/LangGraph。"""
+    fake_workflow = types.ModuleType("agents.workflow")
+    fake_workflow.ocr_workflow = object()
+    fake_workflow.OCRWorkflow = object
+    monkeypatch.setitem(sys.modules, "agents.workflow", fake_workflow)
+
+
 async def _mock_current_user():
+    from api.dependencies.auth import CurrentUser
+
     return CurrentUser(
         user_id=USER_ID,
         token="test-token",
@@ -60,6 +68,9 @@ async def _mock_current_user():
 
 @pytest.fixture
 def client():
+    from api.dependencies.auth import get_current_user
+    from api.main import app
+
     app.dependency_overrides[get_current_user] = _mock_current_user
     try:
         with TestClient(app) as test_client:
@@ -70,6 +81,8 @@ def client():
 
 @pytest.fixture
 def unauth_client():
+    from api.main import app
+
     app.dependency_overrides.clear()
     with TestClient(app) as test_client:
         yield test_client

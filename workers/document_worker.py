@@ -89,14 +89,18 @@ async def execute_job(job: Dict[str, Any]) -> None:
         await update_job(job_id, "failed", error=f"文档不存在: {document_id}")
         return
 
-    await process_document_task(
-        document_id=document_id,
-        file_path=document.get("file_path", ""),
-        template_id=document.get("template_id"),
-        tenant_id=document.get("tenant_id"),
-        custom_push_name=document.get("custom_push_name"),
-        job_id=job_id,
-    )
+    task_kwargs = {
+        "document_id": document_id,
+        "file_path": document.get("file_path", ""),
+        "template_id": document.get("template_id"),
+        "tenant_id": document.get("tenant_id"),
+        "custom_push_name": document.get("custom_push_name"),
+        "job_id": job_id,
+    }
+    if job_type == "crm":
+        task_kwargs["force_auto_approve"] = True
+
+    await process_document_task(**task_kwargs)
 
 
 async def poll_once(worker_id: str) -> bool:

@@ -43,6 +43,42 @@ async def test_execute_single_job_uses_persisted_document_metadata():
 
 
 @pytest.mark.asyncio
+async def test_execute_crm_job_forces_auto_approve():
+    """CRM job 应强制自动通过，审核由 CRM 调用端负责。"""
+    from workers.document_worker import execute_job
+
+    job = {
+        "job_id": "job-crm",
+        "job_type": "crm",
+        "document_ids": [DOCUMENT_ID],
+        "created_by": USER_ID,
+    }
+    document = {
+        "id": DOCUMENT_ID,
+        "file_path": "/tmp/test.pdf",
+        "template_id": TEMPLATE_ID,
+        "tenant_id": TENANT_ID,
+        "custom_push_name": "CRM推送名",
+    }
+
+    with patch("workers.document_worker.supabase_service") as mock_supabase, \
+         patch("workers.document_worker.process_document_task", new_callable=AsyncMock) as mock_task:
+        mock_supabase.get_document = AsyncMock(return_value=document)
+
+        await execute_job(job)
+
+    mock_task.assert_awaited_once_with(
+        document_id=DOCUMENT_ID,
+        file_path="/tmp/test.pdf",
+        template_id=TEMPLATE_ID,
+        tenant_id=TENANT_ID,
+        custom_push_name="CRM推送名",
+        job_id="job-crm",
+        force_auto_approve=True,
+    )
+
+
+@pytest.mark.asyncio
 async def test_execute_batch_job_rebuilds_items_from_job_payload():
     """batch job 应从 processing_jobs.items 重建 BatchItem 列表并在 worker 中执行。"""
     from workers.document_worker import execute_job

@@ -228,6 +228,38 @@ class TestProcessingHandlers:
         mock_svc.save_extraction_result.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_process_task_forces_auto_approve_even_when_template_requires_review(self):
+        """CRM 调用链路应覆盖模板 auto_approve=False，直接保存为 completed。"""
+        from api.routes.documents.process import process_document_task
+
+        result = {
+            "success": True,
+            "document_type": "inspection_report",
+            "extraction_data": {"sample_name": "LED灯"},
+            "template_name": "检测报告",
+        }
+        with _patch_supabase() as mock_svc, \
+             _patch_workflow() as mock_wf, \
+             patch("api.routes.documents.process.template_service") as mock_ts, \
+             patch("api.routes.documents.process.update_job", new_callable=AsyncMock), \
+             patch("api.routes.documents.process.handle_processing_success", new_callable=AsyncMock) as mock_success:
+            mock_svc.update_document_status = AsyncMock()
+            mock_wf.process_with_template = AsyncMock(return_value=result)
+            mock_ts.get_template = AsyncMock(return_value={"id": TEMPLATE_ID, "auto_approve": False})
+
+            await process_document_task(
+                document_id=DOCUMENT_ID,
+                file_path="/tmp/test.pdf",
+                template_id=TEMPLATE_ID,
+                tenant_id=TENANT_ID,
+                job_id="job-crm",
+                force_auto_approve=True,
+            )
+
+        mock_success.assert_awaited_once()
+        assert mock_success.await_args.kwargs["auto_approve"] is True
+
+    @pytest.mark.asyncio
     async def test_handle_failure_updates_status(self):
         """失败处理更新文档状态为 failed"""
         from api.routes.documents.process import _handle_processing_failure

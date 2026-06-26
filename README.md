@@ -209,6 +209,10 @@ PUT /api/documents/{id}/validate
 # 打回重做
 PUT /api/documents/{id}/reject
 
+# CRM 提交文档（强制自动通过，审核由 CRM 侧负责）
+POST /api/crm/documents/submit
+Form: file, template_id, custom_push_name?
+
 # 删除文档
 DELETE /api/documents/{id}
 ```

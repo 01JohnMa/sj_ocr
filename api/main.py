@@ -17,6 +17,7 @@ from services.supabase_service import supabase_service
 from api.routes import documents_router, health_router
 from api.routes.tenants import router as tenants_router
 from api.routes.admin import router as admin_router
+from api.routes.crm import router as crm_router
 
 
 # 配置日志
@@ -130,6 +131,7 @@ app.include_router(health_router, prefix="/api", tags=["健康检查"])
 app.include_router(documents_router, prefix="/api/documents", tags=["文档处理"])
 app.include_router(tenants_router, prefix="/api", tags=["租户管理"])
 app.include_router(admin_router, prefix="/api", tags=["管理员配置"])
+app.include_router(crm_router, prefix="/api", tags=["CRM集成"])
 
 
 @app.exception_handler(AppException)
