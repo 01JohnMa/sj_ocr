@@ -152,7 +152,9 @@ async def push_to_feishu(
     extra_template: Optional[dict] = None,
     custom_push_name: Optional[str] = None,
     dedupe_key: Optional[str] = None,
-) -> None:
+    extra_data: Optional[dict] = None,
+    extra_field_mapping: Optional[dict] = None,
+) -> bool:
     """
     统一飞书推送逻辑：构建 field_mapping → 生成文件名 → 上传附件 → push_by_template
 
@@ -163,6 +165,8 @@ async def push_to_feishu(
     Args:
         source_file_path: 单个文件路径（str）或多个文件路径列表（list），merge 时传 [fp_a, fp_b]
         custom_push_name: 用户自定义的飞书推送文件名，优先于默认生成规则
+        extra_data: 只参与本次推送的额外字段，不写入提取结果
+        extra_field_mapping: extra_data 对应的飞书列映射
     """
     from services.feishu_service import feishu_service
 
@@ -172,11 +176,11 @@ async def push_to_feishu(
 
     if await has_feishu_push_record(effective_dedupe_key):
         logger.info(f"{log_prefix}检测到重复飞书推送，跳过: {document_id}")
-        return
+        return True
 
     if not (bitable_token and table_id):
         logger.info(f"{log_prefix}模板未配置飞书，跳过推送: {document_id}")
-        return
+        return False
 
     field_mapping = template_service.build_field_mapping(template)
 
@@ -184,8 +188,12 @@ async def push_to_feishu(
     if extra_template:
         extra_mapping = template_service.build_field_mapping(extra_template)
         field_mapping = {**extra_mapping, **field_mapping}  # A 优先（覆盖同名 key）
+    if extra_field_mapping:
+        field_mapping = {**field_mapping, **extra_field_mapping}
 
     push_data = {**extraction_data}
+    if extra_data:
+        push_data.update(extra_data)
 
     # 文件名优先使用用户自定义，否则按模板名+时间戳规则生成
     if custom_push_name and custom_push_name.strip():
@@ -232,8 +240,10 @@ async def push_to_feishu(
         if success:
             await record_feishu_push(effective_dedupe_key, document_id, template.get("id"))
             logger.info(f"{log_prefix}飞书推送成功: {document_id}")
+            return True
         else:
             logger.warning(f"{log_prefix}飞书推送失败: {document_id}")
+            return False
     finally:
         if generated_excel_path:
             shutil.rmtree(Path(generated_excel_path).parent, ignore_errors=True)

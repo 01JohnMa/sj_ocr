@@ -98,8 +98,7 @@ async def execute_job(job: Dict[str, Any]) -> None:
         "job_id": job_id,
     }
     if job_type == "crm":
-        task_kwargs["force_auto_approve"] = True
-
+        task_kwargs["force_pending_review"] = True
     await process_document_task(**task_kwargs)
 
 

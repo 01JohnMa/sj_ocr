@@ -81,3 +81,46 @@ async def test_push_to_feishu_attaches_filled_excel_template(tmp_path, monkeypat
         {"file_token": "source-token"},
         {"file_token": "excel-token"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_push_to_feishu_merges_extra_crm_fields(monkeypatch):
+    """CRM 手填字段应只作为额外飞书字段进入推送 payload。"""
+    fake_feishu = MagicMock()
+    fake_feishu.push_by_template = AsyncMock(return_value=True)
+
+    monkeypatch.setattr(helpers, "has_feishu_push_record", AsyncMock(return_value=False))
+    monkeypatch.setattr(helpers, "record_feishu_push", AsyncMock())
+    mock_template_service = MagicMock()
+    mock_template_service.build_field_mapping.return_value = {"sample_name": "样品名称"}
+    monkeypatch.setattr(helpers, "template_service", mock_template_service)
+
+    with patch("services.feishu_service.feishu_service", fake_feishu):
+        pushed = await helpers.push_to_feishu(
+            template={
+                "id": TEMPLATE_ID,
+                "name": "检测报告",
+                "feishu_bitable_token": "bitable-token",
+                "feishu_table_id": "table-id",
+            },
+            extraction_data={"sample_name": "LED灯"},
+            display_name="推送文件",
+            document_id=DOCUMENT_ID,
+            extra_data={
+                "alipay_account": "pay@example.com",
+                "alipay_name": "张三",
+            },
+            extra_field_mapping={
+                "alipay_account": "支付宝账号",
+                "alipay_name": "支付宝姓名",
+            },
+        )
+
+    assert pushed is True
+    push_data, field_mapping, _, _ = fake_feishu.push_by_template.await_args.args
+    assert push_data["sample_name"] == "LED灯"
+    assert push_data["alipay_account"] == "pay@example.com"
+    assert push_data["alipay_name"] == "张三"
+    assert field_mapping["sample_name"] == "样品名称"
+    assert field_mapping["alipay_account"] == "支付宝账号"
+    assert field_mapping["alipay_name"] == "支付宝姓名"

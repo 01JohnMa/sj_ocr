@@ -185,7 +185,7 @@ async def process_document_task(
     tenant_id: Optional[str] = None,
     custom_push_name: Optional[str] = None,
     job_id: Optional[str] = None,
-    force_auto_approve: bool = False,
+    force_pending_review: bool = False,
 ):
     """后台处理任务"""
     try:
@@ -215,8 +215,8 @@ async def process_document_task(
                     template = await template_service.get_template_by_code(tenant_id, result.get("document_type"))
                 if template:
                     auto_approve = bool(template.get("auto_approve", False))
-                if force_auto_approve:
-                    auto_approve = True
+                if force_pending_review:
+                    auto_approve = False
 
                 await handle_processing_success(
                     document_id=document_id,
@@ -227,6 +227,7 @@ async def process_document_task(
                     auto_approve=auto_approve,
                     source_file_path=file_path,
                     custom_push_name=custom_push_name,
+                    skip_feishu_push=force_pending_review,
                 )
                 if job_id:
                     await update_job(job_id, "completed", document_ids=[document_id], error=None)

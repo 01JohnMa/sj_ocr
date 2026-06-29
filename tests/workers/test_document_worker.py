@@ -43,8 +43,8 @@ async def test_execute_single_job_uses_persisted_document_metadata():
 
 
 @pytest.mark.asyncio
-async def test_execute_crm_job_forces_auto_approve():
-    """CRM job 应强制自动通过，审核由 CRM 调用端负责。"""
+async def test_execute_crm_job_waits_for_crm_review():
+    """CRM job 只负责提取入库，不应自动通过或自动推飞书。"""
     from workers.document_worker import execute_job
 
     job = {
@@ -74,7 +74,7 @@ async def test_execute_crm_job_forces_auto_approve():
         tenant_id=TENANT_ID,
         custom_push_name="CRM推送名",
         job_id="job-crm",
-        force_auto_approve=True,
+        force_pending_review=True,
     )
 
 
