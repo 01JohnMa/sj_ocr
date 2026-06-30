@@ -12,12 +12,12 @@
 
 ## 调用前准备
 
-CRM 调用账号需要满足：
+CRM 调用方需要满足：
 
-- 请求头带 `Authorization: Bearer <token>`。
-- 账号角色为 `tenant_admin` 或 `super_admin`。
-- 账号已配置所属部门 `tenant_id`。
-- `template_id` 必须是当前账号有权限访问的模板。
+- 请求头带 `Authorization: Bearer <crm-api-token>`。
+- `<crm-api-token>` 由 NeoFlow 服务端环境变量 `CRM_API_TOKEN` 配置。
+- 固定 token 只用于本文档列出的 CRM 调用流程接口，不用于普通后台登录接口。
+- 固定 token 以质量管理中心内部 CRM 身份调用，只能使用下表中的质量中心模板。
 
 CRM 当前只使用质量管理中心下列模板：
 
@@ -36,7 +36,7 @@ CRM 当前只使用质量管理中心下列模板：
 ```http
 POST /api/crm/documents/submit
 Content-Type: multipart/form-data
-Authorization: Bearer <token>
+Authorization: Bearer <crm-api-token>
 ```
 
 ### 表单参数
@@ -51,7 +51,7 @@ Authorization: Bearer <token>
 
 ```bash
 curl -X POST "https://<neoflow-host>/api/crm/documents/submit" \
-  -H "Authorization: Bearer <token>" \
+  -H "Authorization: Bearer <crm-api-token>" \
   -F "template_id=<template_id>" \
   -F "custom_push_name=CRM单据号-20260626" \
   -F "file=@/path/to/report.pdf"
@@ -84,7 +84,7 @@ HTTP 状态码：`202 Accepted`
 
 ```http
 GET /api/documents/jobs/{job_id}
-Authorization: Bearer <token>
+Authorization: Bearer <crm-api-token>
 ```
 
 ### 返回示例
@@ -115,7 +115,7 @@ Authorization: Bearer <token>
 
 ```http
 GET /api/documents/{document_id}/result
-Authorization: Bearer <token>
+Authorization: Bearer <crm-api-token>
 ```
 
 ### 结果未完成
@@ -165,7 +165,7 @@ CRM 通常只需要读取：
 ```http
 POST /api/crm/documents/{document_id}/feishu/push
 Content-Type: application/json
-Authorization: Bearer <token>
+Authorization: Bearer <crm-api-token>
 ```
 
 ### 请求体

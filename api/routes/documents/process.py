@@ -16,8 +16,9 @@ from services.supabase_service import supabase_service
 from services.template_service import template_service
 from agents.workflow import ocr_workflow
 from api.exceptions import DocumentNotFoundError, FileNotFoundError, ProcessingError, AppException
-from api.dependencies.auth import get_current_user, CurrentUser
+from api.dependencies.auth import get_current_user, get_crm_current_user, CurrentUser
 from api.jobs import create_job, update_job, get_job
+from api.routes.documents.query import _check_document_access
 from .helpers import (
     push_to_feishu,
     handle_processing_success,
@@ -431,7 +432,7 @@ async def process_document_with_template_task(
 @router.get("/jobs/{job_id}")
 async def get_merge_job_status(
     job_id: str,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(get_crm_current_user)
 ):
     """查询合并任务状态（前端轮询用）
 
@@ -448,7 +449,35 @@ async def get_merge_job_status(
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="任务不存在或已过期")
+    if not await _can_access_job(job, user):
+        raise HTTPException(status_code=404, detail="任务不存在或已过期")
     return job
+
+
+async def _can_access_job(job: dict, user: CurrentUser) -> bool:
+    if user.is_super_admin() or job.get("created_by") == user.user_id:
+        return True
+
+    document_ids = list(job.get("document_ids") or [])
+    for item in job.get("items") or []:
+        document_ids.extend(item.get("document_ids") or [])
+        if item.get("document_id"):
+            document_ids.append(item.get("document_id"))
+        if item.get("paired_document_id"):
+            document_ids.append(item.get("paired_document_id"))
+
+    for doc_id in dict.fromkeys(document_ids):
+        if not doc_id:
+            continue
+        document = await supabase_service.get_document(doc_id)
+        if not document:
+            continue
+        try:
+            _check_document_access(document, user, doc_id)
+            return True
+        except DocumentNotFoundError:
+            continue
+    return False
 
 
 async def _save_template_extraction_result(

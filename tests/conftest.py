@@ -68,10 +68,11 @@ async def _mock_current_user():
 
 @pytest.fixture
 def client():
-    from api.dependencies.auth import get_current_user
+    from api.dependencies.auth import get_current_user, get_crm_current_user
     from api.main import app
 
     app.dependency_overrides[get_current_user] = _mock_current_user
+    app.dependency_overrides[get_crm_current_user] = _mock_current_user
     try:
         with TestClient(app) as test_client:
             yield test_client

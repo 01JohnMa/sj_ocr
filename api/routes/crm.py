@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from loguru import logger
 from pydantic import BaseModel
 
-from api.dependencies.auth import CurrentUser, get_current_user
+from api.dependencies.auth import CurrentUser, get_crm_current_user
 from api.exceptions import (
     AuthorizationError,
     DocumentNotFoundError,
@@ -130,8 +130,8 @@ async def _mark_crm_push_completed(
         lambda: (
             supabase_service.client.table(table_name)
             .update(update_data)
-            .eq("document_id", document_id)
             .select("*")
+            .eq("document_id", document_id)
             .execute()
         )
     )
@@ -146,7 +146,7 @@ async def submit_crm_document(
     file: UploadFile = File(...),
     template_id: str = Form(...),
     custom_push_name: Optional[str] = Form(None),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_crm_current_user),
 ):
     """CRM 文档提交入口：入队处理后等待 CRM 审核推送。"""
     try:
@@ -229,7 +229,7 @@ async def submit_crm_document(
 async def push_crm_document_to_feishu(
     document_id: str,
     request: CrmFeishuPushRequest,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_crm_current_user),
 ):
     """CRM 审核完成后，将结果和手填支付宝字段原子推送到飞书。"""
     try:

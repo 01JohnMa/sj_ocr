@@ -10,7 +10,7 @@ import os
 
 from services.supabase_service import supabase_service
 from services.template_service import template_service
-from api.dependencies.auth import get_current_user, CurrentUser
+from api.dependencies.auth import get_current_user, get_crm_current_user, CurrentUser
 from api.exceptions import DocumentNotFoundError, FileNotFoundError, ProcessingError
 from .helpers import parse_allowed_values, raise_auth_or_processing_error
 
@@ -33,7 +33,7 @@ async def _maybe_await(value):
 @router.get("/{document_id}/status")
 async def get_document_status(
     document_id: str,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(get_crm_current_user)
 ):
     """
     获取文档处理状态（需要登录）
@@ -110,7 +110,7 @@ def _check_document_access(document: dict, user: CurrentUser, document_id: str):
 @router.get("/{document_id}/result")
 async def get_extraction_result(
     document_id: str,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(get_crm_current_user)
 ):
     """
     获取提取结果（需要登录）

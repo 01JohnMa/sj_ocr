@@ -7,11 +7,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.dependencies.auth import CurrentUser, get_current_user
+from api.dependencies.auth import CurrentUser
 from tests.conftest import DOCUMENT_ID, TEMPLATE_ID
 from tests.conftest import TENANT_ID, USER_ID
 
 QUALITY_TENANT_ID = "a0000000-0000-0000-0000-000000000001"
+CRM_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001"
 INSPECTION_TEMPLATE_ID = "b0000000-0000-0000-0000-000000000001"
 SAMPLING_TEMPLATE_ID = "b0000000-0000-0000-0000-000000000003"
 EXPRESS_TEMPLATE_ID = "b0000000-0000-0000-0000-000000000002"
@@ -47,7 +48,8 @@ async def _mock_regular_user():
 def _build_test_app(crm_route, current_user):
     app = FastAPI()
     app.include_router(crm_route.router, prefix="/api")
-    app.dependency_overrides[get_current_user] = current_user
+    if current_user:
+        app.dependency_overrides[crm_route.get_crm_current_user] = current_user
     return TestClient(app)
 
 
@@ -96,6 +98,164 @@ def test_crm_submit_uploads_document_and_queues_review_required_job(tmp_path, mo
     assert created_document["status"] == "uploaded"
     assert created_document["custom_push_name"] == "CRM单据"
     mock_svc.update_document_status.assert_awaited_once_with(DOCUMENT_ID, "queued")
+
+
+def test_crm_submit_accepts_configured_fixed_token(tmp_path, monkeypatch):
+    """配置 CRM_API_TOKEN 后，CRM 可用固定 Bearer token 调用提交入口。"""
+    import api.routes.crm as crm_route
+
+    client = _build_test_app(crm_route, None)
+
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(crm_route.settings, "UPLOAD_FOLDER", str(upload_dir))
+    monkeypatch.setattr(crm_route.settings, "CRM_API_TOKEN", "crm-fixed-token")
+    monkeypatch.setattr(crm_route.uuid, "uuid4", lambda: DOCUMENT_ID)
+
+    with patch("api.routes.crm.supabase_service") as mock_svc, \
+         patch("api.routes.crm.template_service") as mock_template_service, \
+         patch("api.routes.crm.create_job", new_callable=AsyncMock, return_value="job-crm"):
+        mock_template_service.get_template = AsyncMock(return_value={
+            "id": INSPECTION_TEMPLATE_ID,
+            "tenant_id": QUALITY_TENANT_ID,
+        })
+        mock_svc.create_document = AsyncMock()
+        mock_svc.update_document_status = AsyncMock()
+
+        response = client.post(
+            "/api/crm/documents/submit",
+            headers={"Authorization": "Bearer crm-fixed-token"},
+            data={"template_id": INSPECTION_TEMPLATE_ID},
+            files={"file": ("report.pdf", b"%PDF-1.4 test", "application/pdf")},
+        )
+
+    assert response.status_code == 202
+    created_document = mock_svc.create_document.await_args.args[0]
+    assert created_document["user_id"] == CRM_SYSTEM_USER_ID
+    assert created_document["tenant_id"] == QUALITY_TENANT_ID
+
+
+def test_crm_submit_rejects_wrong_fixed_token(tmp_path, monkeypatch):
+    """固定 token 配置后，错误 token 不能绕过 CRM 鉴权。"""
+    import api.routes.crm as crm_route
+
+    client = _build_test_app(crm_route, None)
+
+    monkeypatch.setattr(crm_route.settings, "CRM_API_TOKEN", "crm-fixed-token")
+
+    response = client.post(
+        "/api/crm/documents/submit",
+        headers={"Authorization": "Bearer wrong-token"},
+        data={"template_id": INSPECTION_TEMPLATE_ID},
+        files={"file": ("report.pdf", b"%PDF-1.4 test", "application/pdf")},
+    )
+
+    assert response.status_code == 401
+
+
+def test_crm_fixed_token_can_query_job_for_quality_document(monkeypatch):
+    """CRM 固定 token 可查询质量中心文档关联的任务。"""
+    from api.main import app
+
+    monkeypatch.setattr("api.dependencies.auth.settings.CRM_API_TOKEN", "crm-fixed-token")
+
+    with patch("api.routes.documents.process.get_job", new_callable=AsyncMock, return_value={
+        "job_id": "job-crm",
+        "status": "completed",
+        "stage": "completed",
+        "progress": 100,
+        "document_ids": [DOCUMENT_ID],
+        "items": [],
+        "created_by": CRM_SYSTEM_USER_ID,
+    }), patch("api.routes.documents.process.supabase_service") as mock_svc:
+        mock_svc.get_document = AsyncMock(return_value={
+            "id": DOCUMENT_ID,
+            "user_id": CRM_SYSTEM_USER_ID,
+            "tenant_id": QUALITY_TENANT_ID,
+        })
+        with TestClient(app) as client:
+            response = client.get(
+                "/api/documents/jobs/job-crm",
+                headers={"Authorization": "Bearer crm-fixed-token"},
+            )
+
+    assert response.status_code == 200
+    assert response.json()["job_id"] == "job-crm"
+
+
+def test_crm_fixed_token_cannot_query_other_tenant_job(monkeypatch):
+    """CRM 固定 token 不能读取非质量中心文档关联的任务。"""
+    from api.main import app
+
+    monkeypatch.setattr("api.dependencies.auth.settings.CRM_API_TOKEN", "crm-fixed-token")
+
+    with patch("api.routes.documents.process.get_job", new_callable=AsyncMock, return_value={
+        "job_id": "job-other",
+        "status": "completed",
+        "stage": "completed",
+        "progress": 100,
+        "document_ids": [DOCUMENT_ID],
+        "items": [],
+        "created_by": "99999999-9999-4999-8999-999999999999",
+    }), patch("api.routes.documents.process.supabase_service") as mock_svc:
+        mock_svc.get_document = AsyncMock(return_value={
+            "id": DOCUMENT_ID,
+            "user_id": "99999999-9999-4999-8999-999999999999",
+            "tenant_id": TENANT_ID,
+        })
+        with TestClient(app) as client:
+            response = client.get(
+                "/api/documents/jobs/job-other",
+                headers={"Authorization": "Bearer crm-fixed-token"},
+            )
+
+    assert response.status_code == 404
+
+
+def test_crm_fixed_token_can_query_quality_document_status(monkeypatch):
+    """CRM 固定 token 可查询质量中心文档状态。"""
+    from api.main import app
+
+    monkeypatch.setattr("api.dependencies.auth.settings.CRM_API_TOKEN", "crm-fixed-token")
+
+    with patch("api.routes.documents.query._run_supabase", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value = SimpleNamespace(data=[{
+            "id": DOCUMENT_ID,
+            "user_id": CRM_SYSTEM_USER_ID,
+            "tenant_id": QUALITY_TENANT_ID,
+            "status": "pending_review",
+            "document_type": "sampling",
+        }])
+        with TestClient(app) as client:
+            response = client.get(
+                f"/api/documents/{DOCUMENT_ID}/status",
+                headers={"Authorization": "Bearer crm-fixed-token"},
+            )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending_review"
+
+
+def test_crm_fixed_token_cannot_query_other_tenant_document_status(monkeypatch):
+    """CRM 固定 token 查询非质量中心文档状态时按无权访问处理。"""
+    from api.main import app
+
+    monkeypatch.setattr("api.dependencies.auth.settings.CRM_API_TOKEN", "crm-fixed-token")
+
+    with patch("api.routes.documents.query._run_supabase", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value = SimpleNamespace(data=[{
+            "id": DOCUMENT_ID,
+            "user_id": USER_ID,
+            "tenant_id": TENANT_ID,
+            "status": "pending_review",
+            "document_type": "sampling",
+        }])
+        with TestClient(app) as client:
+            response = client.get(
+                f"/api/documents/{DOCUMENT_ID}/status",
+                headers={"Authorization": "Bearer crm-fixed-token"},
+            )
+
+    assert response.status_code == 404
 
 
 def test_crm_submit_rejects_regular_user():
@@ -430,20 +590,27 @@ async def test_mark_crm_push_completed_selects_updated_result(monkeypatch):
             self.update_data = None
             self.eq_args = None
             self.select_args = None
+            self.calls = []
 
         def update(self, data):
+            self.calls.append("update")
             self.update_data = data
             return self
 
         def eq(self, *args):
+            self.calls.append("eq")
             self.eq_args = args
             return self
 
         def select(self, *args):
+            self.calls.append("select")
+            if self.calls[-2:] == ["eq", "select"]:
+                raise AttributeError("'SyncFilterRequestBuilder' object has no attribute 'select'")
             self.select_args = args
             return self
 
         def execute(self):
+            self.calls.append("execute")
             return SimpleNamespace(data=[{"document_id": DOCUMENT_ID}])
 
     query = FakeUpdateQuery()
@@ -469,6 +636,50 @@ async def test_mark_crm_push_completed_selects_updated_result(monkeypatch):
 
     assert query.update_data["sample_name"] == "CRM修正值"
     assert query.update_data["is_validated"] is True
-    assert query.eq_args == ("document_id", DOCUMENT_ID)
+    assert query.update_data["validated_by"] == USER_ID
+    assert query.update_data["validated_at"]
     assert query.select_args == ("*",)
+    assert query.eq_args == ("document_id", DOCUMENT_ID)
+    assert query.calls == ["update", "select", "eq", "execute"]
     fake_service.update_document.assert_awaited_once_with(DOCUMENT_ID, {"status": "completed"})
+
+
+@pytest.mark.asyncio
+async def test_mark_crm_push_completed_fails_when_no_result_row(monkeypatch):
+    """完成标记未返回更新行时应失败，避免误报飞书推送完成。"""
+    import api.routes.crm as crm_route
+
+    class FakeUpdateQuery:
+        def update(self, _data):
+            return self
+
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    class FakeClient:
+        def table(self, table_name):
+            assert table_name == "inspection_reports"
+            return FakeUpdateQuery()
+
+    class FakeSupabaseService:
+        client = FakeClient()
+        update_document = AsyncMock()
+
+    fake_service = FakeSupabaseService()
+    monkeypatch.setattr(crm_route, "supabase_service", fake_service)
+
+    with pytest.raises(crm_route.ProcessingError, match="CRM推送成功后更新审核结果失败"):
+        await crm_route._mark_crm_push_completed(
+            "inspection_reports",
+            DOCUMENT_ID,
+            {"sample_name": "CRM修正值"},
+            USER_ID,
+        )
+
+    fake_service.update_document.assert_not_awaited()

@@ -1,6 +1,7 @@
 # api/dependencies/auth.py
 """认证依赖注入 - FastAPI Depends 实现（支持多租户）"""
 
+import secrets
 import time
 from typing import Optional, Tuple, Dict, Any
 from fastapi import Header, Depends
@@ -10,9 +11,12 @@ import jwt
 
 from services.supabase_service import supabase_service
 from api.exceptions import AuthenticationError
+from config.settings import settings
 
 _PROFILE_CACHE_TTL = 60  # seconds
 _profile_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+QUALITY_CRM_TENANT_ID = "a0000000-0000-0000-0000-000000000001"
+CRM_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 class CurrentUser(BaseModel):
@@ -43,6 +47,12 @@ class CurrentUser(BaseModel):
         return self.tenant_id == tenant_id
 
 
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    return authorization[7:].strip()
+
+
 def _extract_token_and_user_id(authorization: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
     """
     从 Authorization header 提取 token 并解析 user_id
@@ -53,10 +63,9 @@ def _extract_token_and_user_id(authorization: Optional[str]) -> Tuple[Optional[s
     Returns:
         (token, user_id) 元组，如果解析失败则返回 (None, None)
     """
-    if not authorization or not authorization.startswith("Bearer "):
+    token = _extract_bearer_token(authorization)
+    if not token:
         return None, None
-    
-    token = authorization[7:]  # 移除 "Bearer " 前缀
     
     try:
         # 解码 JWT 仅提取 user_id（sub 字段）。
@@ -123,6 +132,28 @@ async def get_current_user(
         logger.error(f"获取用户 profile 失败: user_id={user_id}, error={e}")
     
     return user_data
+
+
+async def get_crm_current_user(
+    authorization: Optional[str] = Header(None)
+) -> CurrentUser:
+    """
+    获取 CRM 调用身份。
+
+    优先识别固定 CRM_API_TOKEN；未命中时兼容普通登录 JWT，便于后台管理员测试。
+    """
+    token = _extract_bearer_token(authorization)
+    if settings.CRM_API_TOKEN and token and secrets.compare_digest(token, settings.CRM_API_TOKEN):
+        return CurrentUser(
+            user_id=CRM_SYSTEM_USER_ID,
+            token=token,
+            tenant_id=QUALITY_CRM_TENANT_ID,
+            tenant_code="quality",
+            tenant_name="质量管理中心",
+            role="tenant_admin",
+            display_name="CRM固定鉴权",
+        )
+    return await get_current_user(authorization)
 
 
 def invalidate_profile_cache(user_id: str) -> None:
