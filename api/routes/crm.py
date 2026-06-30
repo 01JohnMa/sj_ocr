@@ -126,16 +126,17 @@ async def _mark_crm_push_completed(
     update_data["validated_at"] = datetime.now().isoformat()
     update_data["validated_by"] = user_id
 
-    result = await _run_supabase(
+    await _run_supabase(
         lambda: (
             supabase_service.client.table(table_name)
             .update(update_data)
-            .select("*")
             .eq("document_id", document_id)
             .execute()
         )
     )
-    if not result.data:
+
+    result_row = await _fetch_extraction_result(table_name, document_id)
+    if not result_row or result_row.get("is_validated") is not True:
         raise ProcessingError("CRM推送成功后更新审核结果失败")
 
     await supabase_service.update_document(document_id, {"status": "completed"})

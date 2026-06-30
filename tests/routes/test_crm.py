@@ -581,15 +581,14 @@ def test_crm_feishu_push_existing_record_marks_completed_without_second_push():
 
 
 @pytest.mark.asyncio
-async def test_mark_crm_push_completed_selects_updated_result(monkeypatch):
-    """完成标记更新应显式返回更新行，避免 Supabase 空 data 误判失败。"""
+async def test_mark_crm_push_completed_refetches_updated_result(monkeypatch):
+    """完成标记应先更新再查询结果，兼容不支持 update().select() 的 Supabase builder。"""
     import api.routes.crm as crm_route
 
     class FakeUpdateQuery:
         def __init__(self):
             self.update_data = None
             self.eq_args = None
-            self.select_args = None
             self.calls = []
 
         def update(self, data):
@@ -603,22 +602,43 @@ async def test_mark_crm_push_completed_selects_updated_result(monkeypatch):
             return self
 
         def select(self, *args):
+            raise AttributeError("'SyncFilterRequestBuilder' object has no attribute 'select'")
+
+        def execute(self):
+            self.calls.append("execute")
+            return SimpleNamespace(data=[])
+
+    class FakeSelectQuery:
+        def __init__(self):
+            self.eq_args = None
+            self.select_args = None
+            self.calls = []
+
+        def select(self, *args):
             self.calls.append("select")
-            if self.calls[-2:] == ["eq", "select"]:
-                raise AttributeError("'SyncFilterRequestBuilder' object has no attribute 'select'")
             self.select_args = args
+            return self
+
+        def eq(self, *args):
+            self.calls.append("eq")
+            self.eq_args = args
             return self
 
         def execute(self):
             self.calls.append("execute")
-            return SimpleNamespace(data=[{"document_id": DOCUMENT_ID}])
+            return SimpleNamespace(data=[{"document_id": DOCUMENT_ID, "is_validated": True}])
 
-    query = FakeUpdateQuery()
+    update_query = FakeUpdateQuery()
+    select_query = FakeSelectQuery()
 
     class FakeClient:
+        def __init__(self):
+            self.calls = 0
+
         def table(self, table_name):
             assert table_name == "inspection_reports"
-            return query
+            self.calls += 1
+            return update_query if self.calls == 1 else select_query
 
     class FakeSupabaseService:
         client = FakeClient()
@@ -634,25 +654,34 @@ async def test_mark_crm_push_completed_selects_updated_result(monkeypatch):
         USER_ID,
     )
 
-    assert query.update_data["sample_name"] == "CRM修正值"
-    assert query.update_data["is_validated"] is True
-    assert query.update_data["validated_by"] == USER_ID
-    assert query.update_data["validated_at"]
-    assert query.select_args == ("*",)
-    assert query.eq_args == ("document_id", DOCUMENT_ID)
-    assert query.calls == ["update", "select", "eq", "execute"]
+    assert update_query.update_data["sample_name"] == "CRM修正值"
+    assert update_query.update_data["is_validated"] is True
+    assert update_query.update_data["validated_by"] == USER_ID
+    assert update_query.update_data["validated_at"]
+    assert update_query.eq_args == ("document_id", DOCUMENT_ID)
+    assert update_query.calls == ["update", "eq", "execute"]
+    assert select_query.select_args == ("*",)
+    assert select_query.eq_args == ("document_id", DOCUMENT_ID)
+    assert select_query.calls == ["select", "eq", "execute"]
     fake_service.update_document.assert_awaited_once_with(DOCUMENT_ID, {"status": "completed"})
 
 
 @pytest.mark.asyncio
-async def test_mark_crm_push_completed_fails_when_no_result_row(monkeypatch):
-    """完成标记未返回更新行时应失败，避免误报飞书推送完成。"""
+async def test_mark_crm_push_completed_fails_when_refetch_has_no_validated_row(monkeypatch):
+    """完成标记后重新查询不到已审核结果时应失败，避免误报飞书推送完成。"""
     import api.routes.crm as crm_route
 
     class FakeUpdateQuery:
         def update(self, _data):
             return self
 
+        def eq(self, *_args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    class FakeSelectQuery:
         def select(self, *_args):
             return self
 
@@ -663,9 +692,65 @@ async def test_mark_crm_push_completed_fails_when_no_result_row(monkeypatch):
             return SimpleNamespace(data=[])
 
     class FakeClient:
+        def __init__(self):
+            self.calls = 0
+
         def table(self, table_name):
             assert table_name == "inspection_reports"
-            return FakeUpdateQuery()
+            self.calls += 1
+            return FakeUpdateQuery() if self.calls == 1 else FakeSelectQuery()
+
+    class FakeSupabaseService:
+        client = FakeClient()
+        update_document = AsyncMock()
+
+    fake_service = FakeSupabaseService()
+    monkeypatch.setattr(crm_route, "supabase_service", fake_service)
+
+    with pytest.raises(crm_route.ProcessingError, match="CRM推送成功后更新审核结果失败"):
+        await crm_route._mark_crm_push_completed(
+            "inspection_reports",
+            DOCUMENT_ID,
+            {"sample_name": "CRM修正值"},
+            USER_ID,
+        )
+
+    fake_service.update_document.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_mark_crm_push_completed_fails_when_refetch_row_is_not_validated(monkeypatch):
+    """完成标记后重新查询到未审核结果时应失败，避免状态提前完成。"""
+    import api.routes.crm as crm_route
+
+    class FakeUpdateQuery:
+        def update(self, _data):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    class FakeSelectQuery:
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{"document_id": DOCUMENT_ID, "is_validated": False}])
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = 0
+
+        def table(self, table_name):
+            assert table_name == "inspection_reports"
+            self.calls += 1
+            return FakeUpdateQuery() if self.calls == 1 else FakeSelectQuery()
 
     class FakeSupabaseService:
         client = FakeClient()
