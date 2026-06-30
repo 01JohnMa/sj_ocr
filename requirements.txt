@@ -7,23 +7,27 @@
 # ============ Web框架 ============
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+python-multipart==0.0.32
 
 # ============ 数据验证 ============
-pydantic==2.5.3
-pydantic-settings==2.1.0
+pydantic==2.10.6
+pydantic-settings==2.5.2
 email-validator==2.2.0
 
 # ============ Supabase ============
 supabase==2.11.0
 # postgrest 由 supabase 自动管理依赖
+realtime==2.5.3
 
 # ============ LangChain & LangGraph ============
-langchain>=0.2.0
-langchain-openai>=0.1.0
-langchain-core>=0.2.0
+langchain==0.2.17
+langchain-openai==0.1.25
+langchain-core==0.2.43
 langgraph==0.2.62
-openai-agents>=0.7.0
+# openai-agents 0.7+ requires openai>=2.9, which conflicts with langchain-openai 0.1.x.
+openai-agents==0.2.9
+mcp==1.11.0
+sse-starlette==3.0.3
 
 # ============ OCR ============
 # PaddlePaddle (CPU版本)
