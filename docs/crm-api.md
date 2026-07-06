@@ -16,6 +16,7 @@ CRM 调用方需要满足：
 
 - 请求头带 `Authorization: Bearer <crm-api-token>`。
 - `<crm-api-token>` 由 NeoFlow 服务端环境变量 `CRM_API_TOKEN` 配置。
+- 如果 `.env` 中为了转义写成 `CRM_API_TOKEN="xxx"`，请求头只传 `xxx`，不要把外层引号带入 Bearer token。
 - 固定 token 只用于本文档列出的 CRM 调用流程接口，不用于普通后台登录接口。
 - 固定 token 以质量管理中心内部 CRM 身份调用，只能使用下表中的质量中心模板。
 
@@ -28,33 +29,71 @@ CRM 当前只使用质量管理中心下列模板：
 
 支持上传文件：
 
-- 文件类型：`.pdf`, `.png`, `.jpg`, `.jpeg`, `.tiff`, `.bmp`
-- 文件大小：最大 `20MB`
+- 请求方式：统一使用 JSON，NeoFlow 根据文件 URL 下载文件。
+- 文件 URL 协议：只支持 `http` 或 `https`。
+- 文件类型：单个 URL 可为 `.pdf`, `.png`, `.jpg`, `.jpeg`, `.tiff`, `.bmp`；多个 URL 只支持图片，并会按数组顺序合成同一份 PDF 文档。
+- 文件大小：最大 `20MB`。
+- 同一份文档最多 `20` 个文件 URL。
 
 ## 1. 提交文档
 
 ```http
 POST /api/crm/documents/submit
-Content-Type: multipart/form-data
+Content-Type: application/json
 Authorization: Bearer <crm-api-token>
 ```
 
-### 表单参数
+### 请求体参数
 
 | 参数 | 必填 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `file` | 是 | file | 要处理的 PDF 或图片文件 |
 | `template_id` | 是 | string | 模板 ID，只传上表中的检测报告或抽样单 ID |
 | `custom_push_name` | 否 | string | 自定义推送/展示名称，最长 100 字符 |
+| `file` | 是 | array | 文件 URL 数组；同一份文档多页图片按数组顺序传入 |
+| `file[].url` | 是 | string | 文件 URL，只支持 `http` 或 `https` |
+| `file[].type` | 否 | string | 兼容 CRM 现有结构，可传 `images`；NeoFlow 不依赖该字段判断文档类型 |
+
+也兼容字段名 `files`，但推荐统一使用 `file`。`file` 和 `files` 不能同时传。
+
+### 请求示例
+
+```json
+{
+  "template_id": "b0000000-0000-0000-0000-000000000003",
+  "custom_push_name": "CRM单据号-20260626",
+  "file": [
+    {
+      "type": "images",
+      "url": "http://crm.example.com/upload/page1.jpg"
+    },
+    {
+      "type": "images",
+      "url": "http://crm.example.com/upload/page2.jpg"
+    }
+  ]
+}
+```
 
 ### curl 示例
 
 ```bash
 curl -X POST "https://<neoflow-host>/api/crm/documents/submit" \
   -H "Authorization: Bearer <crm-api-token>" \
-  -F "template_id=<template_id>" \
-  -F "custom_push_name=CRM单据号-20260626" \
-  -F "file=@/path/to/report.pdf"
+  -H "Content-Type: application/json" \
+  -d '{
+    "template_id": "b0000000-0000-0000-0000-000000000003",
+    "custom_push_name": "CRM单据号-20260626",
+    "file": [
+      {
+        "type": "images",
+        "url": "http://crm.example.com/upload/page1.jpg"
+      },
+      {
+        "type": "images",
+        "url": "http://crm.example.com/upload/page2.jpg"
+      }
+    ]
+  }'
 ```
 
 ### 成功返回
@@ -246,14 +285,14 @@ HTTP 状态码：`200 OK`
 | `404` | `HTTP_ERROR` | 模板不存在，或任务不存在 |
 | `400` | `INVALID_FILE_TYPE` | 文件类型不支持 |
 | `400` | `FILE_TOO_LARGE` | 文件超过 20MB |
-| `400` | `VALIDATION_ERROR` | 模板不支持、支付宝字段为空，或文档不是待 CRM 审核状态 |
-| `422` | `HTTP_ERROR` | 文档处理失败，查询结果时返回失败原因 |
+| `400` | `VALIDATION_ERROR` | 模板不支持、文件 URL 为空或非法、`file` 和 `files` 同时传、支付宝字段为空，或文档不是待 CRM 审核状态 |
+| `422` | `HTTP_ERROR` | 请求体不是合法 JSON、缺少必填字段、字段类型不匹配，或文档处理失败后查询结果 |
 | `502` | `EXTERNAL_SERVICE_ERROR` | 飞书推送失败 |
 | `500` | `PROCESSING_FAILED` | 保存或提交处理失败 |
 
 ## 推荐调用流程
 
-1. 调用 `POST /api/crm/documents/submit` 上传文件和模板 ID。
+1. 调用 `POST /api/crm/documents/submit` 提交文件 URL 和模板 ID。
 2. 保存返回的 `document_id` 和 `job_id`。
 3. 轮询 `GET /api/documents/jobs/{job_id}`，直到 `completed` 或 `failed`。
 4. 如果任务完成，调用 `GET /api/documents/{document_id}/result` 获取 `extraction_data`。

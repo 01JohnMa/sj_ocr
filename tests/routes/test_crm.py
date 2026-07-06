@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -54,7 +55,7 @@ def _build_test_app(crm_route, current_user):
 
 
 def test_crm_submit_uploads_document_and_queues_review_required_job(tmp_path, monkeypatch):
-    """CRM/管理员提交入口应入队 crm job，后续等待 CRM 审核推送。"""
+    """CRM/管理员用 JSON URL 数组提交同一份多页文档后应入队 crm job。"""
     import api.routes.crm as crm_route
 
     client = _build_test_app(crm_route, _mock_quality_admin)
@@ -65,22 +66,33 @@ def test_crm_submit_uploads_document_and_queues_review_required_job(tmp_path, mo
 
     with patch("api.routes.crm.supabase_service") as mock_svc, \
          patch("api.routes.crm.template_service") as mock_template_service, \
-         patch("api.routes.crm.create_job", new_callable=AsyncMock, return_value="job-crm"):
+         patch("api.routes.crm.create_job", new_callable=AsyncMock, return_value="job-crm"), \
+         patch("api.routes.crm._prepare_crm_json_upload", new_callable=AsyncMock) as mock_prepare:
         mock_template_service.get_template = AsyncMock(return_value={
             "id": INSPECTION_TEMPLATE_ID,
             "tenant_id": QUALITY_TENANT_ID,
         })
+        mock_prepare.return_value = {
+            "file_name": f"{DOCUMENT_ID}.pdf",
+            "original_file_name": "CRM单据.pdf",
+            "file_path": str(upload_dir / f"{DOCUMENT_ID}.pdf"),
+            "file_size": 2048,
+            "file_extension": ".pdf",
+            "file_type": "application/pdf",
+            "mime_type": "application/pdf",
+        }
         mock_svc.create_document = AsyncMock()
         mock_svc.update_document_status = AsyncMock()
 
         response = client.post(
             "/api/crm/documents/submit",
-            data={
+            json={
                 "template_id": INSPECTION_TEMPLATE_ID,
                 "custom_push_name": "CRM单据",
-            },
-            files={
-                "file": ("report.pdf", b"%PDF-1.4 test", "application/pdf"),
+                "file": [
+                    {"type": "images", "url": "http://crm.example.com/page1.jpg"},
+                    {"type": "images", "url": "http://crm.example.com/page2.jpg"},
+                ],
             },
         )
 
@@ -97,6 +109,8 @@ def test_crm_submit_uploads_document_and_queues_review_required_job(tmp_path, mo
     assert created_document["template_id"] == INSPECTION_TEMPLATE_ID
     assert created_document["status"] == "uploaded"
     assert created_document["custom_push_name"] == "CRM单据"
+    assert created_document["file_extension"] == ".pdf"
+    mock_prepare.assert_awaited_once()
     mock_svc.update_document_status.assert_awaited_once_with(DOCUMENT_ID, "queued")
 
 
@@ -113,25 +127,38 @@ def test_crm_submit_accepts_configured_fixed_token(tmp_path, monkeypatch):
 
     with patch("api.routes.crm.supabase_service") as mock_svc, \
          patch("api.routes.crm.template_service") as mock_template_service, \
-         patch("api.routes.crm.create_job", new_callable=AsyncMock, return_value="job-crm"):
+         patch("api.routes.crm.create_job", new_callable=AsyncMock, return_value="job-crm"), \
+         patch("api.routes.crm._prepare_crm_json_upload", new_callable=AsyncMock) as mock_prepare:
         mock_template_service.get_template = AsyncMock(return_value={
             "id": INSPECTION_TEMPLATE_ID,
             "tenant_id": QUALITY_TENANT_ID,
         })
+        mock_prepare.return_value = {
+            "file_name": f"{DOCUMENT_ID}.pdf",
+            "original_file_name": "crm_url_document.pdf",
+            "file_path": str(upload_dir / f"{DOCUMENT_ID}.pdf"),
+            "file_size": 2048,
+            "file_extension": ".pdf",
+            "file_type": "application/pdf",
+            "mime_type": "application/pdf",
+        }
         mock_svc.create_document = AsyncMock()
         mock_svc.update_document_status = AsyncMock()
 
         response = client.post(
             "/api/crm/documents/submit",
             headers={"Authorization": "Bearer crm-fixed-token"},
-            data={"template_id": INSPECTION_TEMPLATE_ID},
-            files={"file": ("report.pdf", b"%PDF-1.4 test", "application/pdf")},
+            json={
+                "template_id": INSPECTION_TEMPLATE_ID,
+                "file": [{"url": "http://crm.example.com/page1.jpg"}],
+            },
         )
 
     assert response.status_code == 202
     created_document = mock_svc.create_document.await_args.args[0]
     assert created_document["user_id"] == CRM_SYSTEM_USER_ID
     assert created_document["tenant_id"] == QUALITY_TENANT_ID
+    mock_prepare.assert_awaited_once()
 
 
 def test_crm_submit_rejects_wrong_fixed_token(tmp_path, monkeypatch):
@@ -145,11 +172,114 @@ def test_crm_submit_rejects_wrong_fixed_token(tmp_path, monkeypatch):
     response = client.post(
         "/api/crm/documents/submit",
         headers={"Authorization": "Bearer wrong-token"},
-        data={"template_id": INSPECTION_TEMPLATE_ID},
-        files={"file": ("report.pdf", b"%PDF-1.4 test", "application/pdf")},
+        json={
+            "template_id": INSPECTION_TEMPLATE_ID,
+            "file": [{"url": "http://crm.example.com/page1.jpg"}],
+        },
     )
 
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_prepare_crm_json_upload_merges_image_urls_to_single_pdf(tmp_path, monkeypatch):
+    """同一份文档的多张图片 URL 应按顺序合成一个 PDF 文件。"""
+    import api.routes.crm as crm_route
+    from PIL import Image
+
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(crm_route.settings, "UPLOAD_FOLDER", str(upload_dir))
+
+    async def fake_download(item, destination_dir, index):
+        image_path = destination_dir / f"page_{index}.jpg"
+        Image.new("RGB", (16, 16), color=(index * 30, 20, 20)).save(image_path, format="JPEG")
+        return {
+            "path": str(image_path),
+            "extension": ".jpg",
+            "content_type": "image/jpeg",
+            "url": item.url,
+        }
+
+    monkeypatch.setattr(crm_route, "_download_crm_file_url", fake_download)
+
+    result = await crm_route._prepare_crm_json_upload(
+        DOCUMENT_ID,
+        crm_route.CrmSubmitRequest(
+            template_id=SAMPLING_TEMPLATE_ID,
+            custom_push_name="CRM多页抽样单",
+            file=[
+                crm_route.CrmSubmitFileItem(url="http://crm.example.com/page1.jpg", type="images"),
+                crm_route.CrmSubmitFileItem(url="http://crm.example.com/page2.jpg", type="images"),
+            ],
+        ),
+    )
+
+    assert result["file_name"] == f"{DOCUMENT_ID}.pdf"
+    assert result["original_file_name"] == "CRM多页抽样单.pdf"
+    assert result["file_extension"] == ".pdf"
+    assert result["mime_type"] == "application/pdf"
+    assert result["file_size"] > 0
+    assert (upload_dir / f"{DOCUMENT_ID}.pdf").exists()
+
+
+def test_crm_submit_files_rejects_file_and_files_together():
+    """JSON 提交时 file 和 files 只能二选一，避免页序歧义。"""
+    import api.routes.crm as crm_route
+
+    request = crm_route.CrmSubmitRequest(
+        template_id=SAMPLING_TEMPLATE_ID,
+        file=[crm_route.CrmSubmitFileItem(url="http://crm.example.com/page1.jpg")],
+        files=[crm_route.CrmSubmitFileItem(url="http://crm.example.com/page2.jpg")],
+    )
+
+    with pytest.raises(crm_route.ValidationError, match="file和files不能同时传"):
+        crm_route._crm_submit_files(request)
+
+
+def test_crm_file_url_rejects_loopback_address():
+    """CRM 文件 URL 不能指向本机地址，避免服务端下载 SSRF。"""
+    import api.routes.crm as crm_route
+
+    with pytest.raises(crm_route.ValidationError, match="文件URL不允许指向内网或本机地址"):
+        crm_route._validate_crm_file_url("http://127.0.0.1:8099/private.jpg")
+
+
+@pytest.mark.asyncio
+async def test_prepare_crm_json_upload_cleans_partial_pdf_when_merge_fails(tmp_path, monkeypatch):
+    """图片合并失败时应清理已写入的目标 PDF 残文件。"""
+    import api.routes.crm as crm_route
+    from PIL import Image
+
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(crm_route.settings, "UPLOAD_FOLDER", str(upload_dir))
+
+    async def fake_download(item, destination_dir, index):
+        image_path = destination_dir / f"page_{index}.jpg"
+        Image.new("RGB", (16, 16), color=(index * 30, 20, 20)).save(image_path, format="JPEG")
+        return {
+            "path": str(image_path),
+            "extension": ".jpg",
+            "content_type": "image/jpeg",
+            "url": item.url,
+        }
+
+    def fail_after_partial_write(_image_paths, destination):
+        Path(destination).write_bytes(b"partial")
+        raise RuntimeError("merge failed")
+
+    monkeypatch.setattr(crm_route, "_download_crm_file_url", fake_download)
+    monkeypatch.setattr(crm_route, "_images_to_pdf_sync", fail_after_partial_write)
+
+    with pytest.raises(RuntimeError, match="merge failed"):
+        await crm_route._prepare_crm_json_upload(
+            DOCUMENT_ID,
+            crm_route.CrmSubmitRequest(
+                template_id=SAMPLING_TEMPLATE_ID,
+                file=[crm_route.CrmSubmitFileItem(url="http://crm.example.com/page1.jpg")],
+            ),
+        )
+
+    assert not (upload_dir / f"{DOCUMENT_ID}.pdf").exists()
 
 
 def test_crm_fixed_token_can_query_job_for_quality_document(monkeypatch):
@@ -266,8 +396,10 @@ def test_crm_submit_rejects_regular_user():
 
     response = client.post(
         "/api/crm/documents/submit",
-        data={"template_id": TEMPLATE_ID},
-        files={"file": ("report.pdf", b"%PDF-1.4 test", "application/pdf")},
+        json={
+            "template_id": TEMPLATE_ID,
+            "file": [{"url": "http://crm.example.com/page1.jpg"}],
+        },
     )
 
     assert response.status_code == 403
@@ -287,8 +419,10 @@ def test_crm_submit_rejects_template_from_other_tenant():
 
         response = client.post(
             "/api/crm/documents/submit",
-            data={"template_id": TEMPLATE_ID},
-            files={"file": ("report.pdf", b"%PDF-1.4 test", "application/pdf")},
+            json={
+                "template_id": TEMPLATE_ID,
+                "file": [{"url": "http://crm.example.com/page1.jpg"}],
+            },
         )
 
     assert response.status_code == 403
@@ -308,8 +442,10 @@ def test_crm_submit_rejects_express_template():
 
         response = client.post(
             "/api/crm/documents/submit",
-            data={"template_id": EXPRESS_TEMPLATE_ID},
-            files={"file": ("express.pdf", b"%PDF-1.4 test", "application/pdf")},
+            json={
+                "template_id": EXPRESS_TEMPLATE_ID,
+                "file": [{"url": "http://crm.example.com/page1.jpg"}],
+            },
         )
 
     assert response.status_code == 400
