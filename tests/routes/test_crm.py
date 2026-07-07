@@ -19,6 +19,18 @@ SAMPLING_TEMPLATE_ID = "b0000000-0000-0000-0000-000000000003"
 EXPRESS_TEMPLATE_ID = "b0000000-0000-0000-0000-000000000002"
 
 
+def _crm_feishu_push_payload(**overrides):
+    payload = {
+        "alipay_account": "pay@example.com",
+        "alipay_name": "张三",
+        "dealer": "宁波经销商",
+        "dealer_name": "李四",
+        "contact_phone": "13800000000",
+    }
+    payload.update(overrides)
+    return payload
+
+
 async def _mock_current_user():
     return CurrentUser(
         user_id=USER_ID,
@@ -494,15 +506,19 @@ def test_crm_feishu_push_merges_reviewed_data_and_alipay_then_completes():
 
         response = client.post(
             f"/api/crm/documents/{DOCUMENT_ID}/feishu/push",
-            json={
-                "alipay_account": "  pay@example.com  ",
-                "alipay_name": " 张三 ",
-                "reviewed_data": {
+            json=_crm_feishu_push_payload(
+                alipay_account="  pay@example.com  ",
+                alipay_name=" 张三 ",
+                dealer=" 宁波经销商 ",
+                dealer_name=" 李四 ",
+                contact_phone=" 13800000000 ",
+                reviewed_data={
                     "sample_name": "CRM修正值",
                     "alipay_account": "不应作为识别字段保存",
+                    "dealer": "不应作为识别字段保存",
                 },
-                "custom_push_name": "CRM审核单",
-            },
+                custom_push_name="CRM审核单",
+            ),
         )
 
     assert response.status_code == 200
@@ -511,14 +527,21 @@ def test_crm_feishu_push_merges_reviewed_data_and_alipay_then_completes():
     push_kwargs = mock_push.await_args.kwargs
     assert push_kwargs["extraction_data"]["sample_name"] == "CRM修正值"
     assert "alipay_account" not in push_kwargs["extraction_data"]
+    assert "dealer" not in push_kwargs["extraction_data"]
     assert "is_validated" not in push_kwargs["extraction_data"]
     assert push_kwargs["extra_data"] == {
         "alipay_account": "pay@example.com",
         "alipay_name": "张三",
+        "dealer": "宁波经销商",
+        "dealer_name": "李四",
+        "contact_phone": "13800000000",
     }
     assert push_kwargs["extra_field_mapping"] == {
         "alipay_account": "支付宝账号",
         "alipay_name": "支付宝姓名",
+        "dealer": "经销商",
+        "dealer_name": "经销商姓名",
+        "contact_phone": "联系号码",
     }
     assert push_kwargs["custom_push_name"] == "CRM审核单"
     assert push_kwargs["dedupe_key"] == "crm-dedupe"
@@ -530,15 +553,15 @@ def test_crm_feishu_push_merges_reviewed_data_and_alipay_then_completes():
     )
 
 
-def test_crm_feishu_push_requires_alipay_fields():
-    """支付宝账号和姓名为 CRM 手填必填字段。"""
+def test_crm_feishu_push_requires_manual_fields():
+    """CRM 手填字段为飞书推送必填字段。"""
     import api.routes.crm as crm_route
 
     client = _build_test_app(crm_route, _mock_quality_admin)
 
     response = client.post(
         f"/api/crm/documents/{DOCUMENT_ID}/feishu/push",
-        json={"alipay_account": "pay@example.com", "alipay_name": " "},
+        json=_crm_feishu_push_payload(contact_phone=" "),
     )
 
     assert response.status_code == 400
@@ -570,7 +593,7 @@ def test_crm_feishu_push_rejects_express_template():
 
         response = client.post(
             f"/api/crm/documents/{DOCUMENT_ID}/feishu/push",
-            json={"alipay_account": "pay@example.com", "alipay_name": "张三"},
+            json=_crm_feishu_push_payload(),
         )
 
     assert response.status_code == 400
@@ -613,7 +636,7 @@ def test_crm_feishu_push_does_not_complete_when_push_fails():
 
         response = client.post(
             f"/api/crm/documents/{DOCUMENT_ID}/feishu/push",
-            json={"alipay_account": "pay@example.com", "alipay_name": "张三"},
+            json=_crm_feishu_push_payload(),
         )
 
     assert response.status_code == 502
@@ -654,11 +677,7 @@ def test_crm_feishu_push_rejects_unknown_reviewed_data_fields_before_push():
 
         response = client.post(
             f"/api/crm/documents/{DOCUMENT_ID}/feishu/push",
-            json={
-                "alipay_account": "pay@example.com",
-                "alipay_name": "张三",
-                "reviewed_data": {"unknown_field": "不应允许"},
-            },
+            json=_crm_feishu_push_payload(reviewed_data={"unknown_field": "不应允许"}),
         )
 
     assert response.status_code == 400
@@ -702,7 +721,7 @@ def test_crm_feishu_push_existing_record_marks_completed_without_second_push():
 
         response = client.post(
             f"/api/crm/documents/{DOCUMENT_ID}/feishu/push",
-            json={"alipay_account": "pay@example.com", "alipay_name": "张三"},
+            json=_crm_feishu_push_payload(),
         )
 
     assert response.status_code == 200

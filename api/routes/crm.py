@@ -47,6 +47,9 @@ QUALITY_CRM_TEMPLATE_IDS = {
 CRM_EXTRA_FIELD_MAPPING = {
     "alipay_account": "支付宝账号",
     "alipay_name": "支付宝姓名",
+    "dealer": "经销商",
+    "dealer_name": "经销商姓名",
+    "contact_phone": "联系号码",
 }
 CRM_MAX_JSON_FILES = 20
 CRM_MAX_DOWNLOAD_REDIRECTS = 3
@@ -83,6 +86,9 @@ class CrmFeishuPushRequest(BaseModel):
 
     alipay_account: str
     alipay_name: str
+    dealer: str
+    dealer_name: str
+    contact_phone: str
     reviewed_data: Optional[Dict[str, Any]] = None
     custom_push_name: Optional[str] = None
 
@@ -466,12 +472,15 @@ async def push_crm_document_to_feishu(
     request: CrmFeishuPushRequest,
     user: CurrentUser = Depends(get_crm_current_user),
 ):
-    """CRM 审核完成后，将结果和手填支付宝字段原子推送到飞书。"""
+    """CRM 审核完成后，将识别结果和 CRM 手填字段原子推送到飞书。"""
     try:
         _ensure_crm_admin(user)
 
         alipay_account = _required_str(request.alipay_account, "支付宝账号")
         alipay_name = _required_str(request.alipay_name, "支付宝姓名")
+        dealer = _required_str(request.dealer, "经销商")
+        dealer_name = _required_str(request.dealer_name, "经销商姓名")
+        contact_phone = _required_str(request.contact_phone, "联系号码")
 
         document = await supabase_service.get_document(document_id)
         if not document:
@@ -502,6 +511,9 @@ async def push_crm_document_to_feishu(
         extra_data = {
             "alipay_account": alipay_account,
             "alipay_name": alipay_name,
+            "dealer": dealer,
+            "dealer_name": dealer_name,
+            "contact_phone": contact_phone,
         }
         dedupe_key = build_feishu_push_dedupe_key(
             document_id,

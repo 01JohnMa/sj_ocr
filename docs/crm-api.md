@@ -213,13 +213,19 @@ Authorization: Bearer <crm-api-token>
 | --- | --- | --- | --- |
 | `alipay_account` | 是 | string | CRM 手填支付宝账号，只参与飞书推送 |
 | `alipay_name` | 是 | string | CRM 手填支付宝姓名，只参与飞书推送 |
+| `dealer` | 是 | string | CRM 手填经销商，只参与飞书推送 |
+| `dealer_name` | 是 | string | CRM 手填经销商姓名，只参与飞书推送 |
+| `contact_phone` | 是 | string | CRM 手填联系号码，只参与飞书推送 |
 | `reviewed_data` | 否 | object | CRM 审核修正后的识别字段；传入后覆盖原识别字段再推送 |
 | `custom_push_name` | 否 | string | 本次推送使用的文件名；不传则使用提交时的 `custom_push_name` |
 
-支付宝字段不会进入 OCR/LLM 解析字段，也不会写入模板字段配置；飞书多维表格需要提前建好两列：
+CRM 手填字段不会进入 OCR/LLM 解析字段，也不会写入模板字段配置；飞书多维表格需要提前建好下列字段：
 
 - `支付宝账号`
 - `支付宝姓名`
+- `经销商`
+- `经销商姓名`
+- `联系号码`
 
 ### 请求示例
 
@@ -227,6 +233,9 @@ Authorization: Bearer <crm-api-token>
 {
   "alipay_account": "example@alipay.com",
   "alipay_name": "张三",
+  "dealer": "宁波经销商",
+  "dealer_name": "李四",
+  "contact_phone": "13800000000",
   "reviewed_data": {
     "sample_name": "CRM修正后的样品名称"
   },
@@ -296,5 +305,5 @@ HTTP 状态码：`200 OK`
 2. 保存返回的 `document_id` 和 `job_id`。
 3. 轮询 `GET /api/documents/jobs/{job_id}`，直到 `completed` 或 `failed`。
 4. 如果任务完成，调用 `GET /api/documents/{document_id}/result` 获取 `extraction_data`。
-5. CRM 审核识别结果，补充支付宝账号和支付宝姓名。
+5. CRM 审核识别结果，补充支付宝账号、支付宝姓名、经销商、经销商姓名和联系号码。
 6. 调用 `POST /api/crm/documents/{document_id}/feishu/push` 推送飞书。
